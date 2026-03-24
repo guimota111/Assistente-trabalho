@@ -102,10 +102,10 @@
 
         /* ── App layout ── */
         .container {
-            max-width: 760px;
-            margin: 0 auto;
-            padding: 20px 16px 48px;
+            width: 100%;
+            padding: 20px 32px 48px;
         }
+        @media (max-width: 600px) { .container { padding: 16px 12px 48px; } }
 
         /* ── User bar ── */
         .user-bar {
@@ -493,16 +493,30 @@ function saveData() {
 
 async function saveToHistory(dayData) {
     if (!currentUser || !dayData.workStartTime || !(dayData.cases || []).length) return;
-    const entry = {
-        date: dayData.date,
+    const newSession = {
         workStartTime: dayData.workStartTime,
         dayEndTime: dayData.dayEndTime || new Date().toISOString(),
         cases: dayData.cases,
         pauses: dayData.pauses || [],
     };
     historyCache = null;
-    try { await historyRef(dayData.date).set(entry); }
-    catch (e) { console.warn('saveToHistory:', e); }
+    try {
+        const existing = await historyRef(dayData.date).get();
+        if (existing.exists) {
+            const d = existing.data();
+            // migra formato antigo (sem sessions) para o novo
+            const sessions = d.sessions || [{
+                workStartTime: d.workStartTime,
+                dayEndTime: d.dayEndTime,
+                cases: d.cases || [],
+                pauses: d.pauses || [],
+            }];
+            sessions.push(newSession);
+            await historyRef(dayData.date).set({ date: dayData.date, sessions });
+        } else {
+            await historyRef(dayData.date).set({ date: dayData.date, sessions: [newSession] });
+        }
+    } catch (e) { console.warn('saveToHistory:', e); }
 }
 
 async function loadHistory() {
@@ -520,24 +534,36 @@ async function loadHistory() {
 }
 
 function calcDayStats(day) {
-    const cases       = day.cases  || [];
-    const pauses      = day.pauses || [];
-    const totalCases  = cases.length;
-    const totalSlides = cases.reduce((a, c) => a + c.slides, 0);
-    const totalCasesMs = cases.reduce((a, c) => a + c.duration, 0);
-    const pauseMs     = pauses.reduce((a, p) => a + ts(p.end) - ts(p.start), 0);
-    let workMs = 0;
-    if (day.workStartTime && day.dayEndTime) {
-        workMs = Math.max(0, ts(day.dayEndTime) - ts(day.workStartTime) - pauseMs);
+    // suporta formato novo (sessions[]) e antigo (campos diretos)
+    const sessions = day.sessions || [{
+        workStartTime: day.workStartTime,
+        dayEndTime: day.dayEndTime,
+        cases: day.cases || [],
+        pauses: day.pauses || [],
+    }];
+    let allCases = [], workMs = 0, pauseMs = 0;
+    for (const s of sessions) {
+        allCases = allCases.concat(s.cases || []);
+        const spauses = s.pauses || [];
+        const sPauseMs = spauses.reduce((a, p) => a + ts(p.end) - ts(p.start), 0);
+        pauseMs += sPauseMs;
+        if (s.workStartTime && s.dayEndTime) {
+            workMs += Math.max(0, ts(s.dayEndTime) - ts(s.workStartTime) - sPauseMs);
+        }
     }
+    const totalCases   = allCases.length;
+    const totalSlides  = allCases.reduce((a, c) => a + c.slides, 0);
+    const totalCasesMs = allCases.reduce((a, c) => a + c.duration, 0);
     return {
         totalCases,
         totalSlides,
         totalCasesMs,
-        avgPerCase:  totalCases  > 0 ? totalCasesMs / totalCases  : 0,
-        avgPerSlide: totalSlides > 0 ? totalCasesMs / totalSlides : 0,
+        avgPerCase:   totalCases  > 0 ? totalCasesMs / totalCases  : 0,
+        avgPerSlide:  totalSlides > 0 ? totalCasesMs / totalSlides : 0,
         workMs,
         pauseMs,
+        sessionCount: sessions.length,
+        allCases,
     };
 }
 
@@ -828,7 +854,7 @@ function renderWorking(s) {
         </div>
         <div class="actions">
             <button class="btn btn-pause" id="btnPause">Pausar</button>
-            <button class="btn btn-danger" id="btnEnd">Encerrar Dia</button>
+            <button class="btn btn-danger" id="btnEnd">Encerrar Sessão</button>
         </div>
     </div>
     ${renderStatsGrid(s)}
@@ -844,7 +870,7 @@ function renderPaused(s) {
         <div class="pause-info" id="pauseInfo">Em pausa: ${formatDuration(getCurrentPauseDuration())}</div>
         <div class="actions">
             <button class="btn btn-primary" id="btnResume">Retomar Trabalho</button>
-            <button class="btn btn-danger" id="btnEnd">Encerrar Dia</button>
+            <button class="btn btn-danger" id="btnEnd">Encerrar Sessão</button>
         </div>
     </div>
     ${renderStatsGrid(s)}
@@ -855,9 +881,9 @@ function renderEnded(s) {
     const totalPause = data.pauses.reduce((a, p) => a + ts(p.end) - ts(p.start), 0);
     return `
     <div class="card status-card state-ended">
-        <div class="state-badge">Dia Encerrado</div>
+        <div class="state-badge">Sessão Encerrada</div>
         <div class="main-timer">${formatDuration(getTotalWorkingTime())}</div>
-        <div class="timer-label">Total trabalhado hoje</div>
+        <div class="timer-label">Total da sessão</div>
         <div class="summary-grid">
             <div class="summary-item"><div class="s-value">${s.totalCases}</div><div class="s-label">Casos laudados</div></div>
             <div class="summary-item"><div class="s-value">${s.totalSlides}</div><div class="s-label">Lâminas analisadas</div></div>
@@ -867,7 +893,7 @@ function renderEnded(s) {
             <div class="summary-item"><div class="s-value">${data.pauses.length}</div><div class="s-label">Pausas realizadas</div></div>
         </div>
         <div class="actions">
-            <button class="btn btn-outline" id="btnNewDay">Iniciar Novo Dia</button>
+            <button class="btn btn-outline" id="btnNewDay">Iniciar Nova Sessão</button>
         </div>
     </div>
     ${renderCasesList()}`;
@@ -886,7 +912,7 @@ function renderStatsGrid(s) {
 }
 
 function renderCasesList() {
-    const title = `<div class="card cases-card"><h2>Casos de Hoje${data.cases.length > 0 ? ' (' + data.cases.length + ')' : ''}</h2>`;
+    const title = `<div class="card cases-card"><h2>Casos desta sessão${data.cases.length > 0 ? ' (' + data.cases.length + ')' : ''}</h2>`;
     if (data.cases.length === 0) return title + `<div class="empty-cases">Nenhum caso registrado ainda.</div></div>`;
     const rows = [...data.cases].reverse().map(c => `
         <div class="case-item">
@@ -902,7 +928,7 @@ function renderCasesList() {
 function renderHistory() {
     const days = Object.values(historyCache).sort((a, b) => b.date.localeCompare(a.date));
     if (days.length === 0) {
-        return `<div class="empty-history">Nenhum dia registrado ainda.<br>Encerre seu primeiro dia de trabalho para ver o histórico.</div>`;
+        return `<div class="empty-history">Nenhum dia registrado ainda.<br>Encerre sua primeira sessão de trabalho para ver o histórico.</div>`;
     }
     let allCases = 0, allSlides = 0, allCasesMs = 0;
     for (const day of days) {
@@ -924,11 +950,12 @@ function renderHistory() {
 function renderHistoryDay(day) {
     const s = calcDayStats(day);
     const isOpen = expandedDays.has(day.date);
+    const sessaoLabel = s.sessionCount > 1 ? ` · ${s.sessionCount} sessões` : '';
     const header = `
     <div class="history-day-header" data-date="${day.date}">
         <div class="hday-left">
             <div class="hday-date">${formatDateShort(day.date)}</div>
-            <div class="hday-meta">${s.totalSlides} lâminas · ${formatDuration(s.workMs)} trabalhado</div>
+            <div class="hday-meta">${s.totalSlides} lâminas · ${formatDuration(s.workMs)} trabalhado${sessaoLabel}</div>
         </div>
         <div style="display:flex;align-items:center;gap:4px">
             <div class="hday-right">
@@ -949,9 +976,9 @@ function renderHistoryDay(day) {
         <div class="hday-stat"><div class="hday-stat-val">${s.totalCases}</div><div class="hday-stat-lbl">Casos</div></div>
         <div class="hday-stat"><div class="hday-stat-val">${s.totalSlides}</div><div class="hday-stat-lbl">Lâminas</div></div>
     </div>`;
-    const casesRows = [...(day.cases || [])].reverse().map(c => `
+    const casesRows = [...s.allCases].reverse().map((c, i, arr) => `
         <div class="hday-case-row">
-            <span class="case-num">Caso #${c.id}</span>
+            <span class="case-num">Caso #${arr.length - i}</span>
             <span class="case-slides">${c.slides} lâmina${c.slides !== 1 ? 's' : ''}</span>
             <span class="case-time">${new Date(c.endTime).toLocaleTimeString('pt-BR', {hour: '2-digit', minute: '2-digit'})}</span>
             <span class="case-dur">${formatShort(c.duration)}</span>
@@ -978,10 +1005,10 @@ function attachEvents() {
     document.getElementById('btnPause')?.addEventListener('click', pauseWork);
     document.getElementById('btnResume')?.addEventListener('click', resumeWork);
     document.getElementById('btnEnd')?.addEventListener('click', async () => {
-        if (confirm('Encerrar o trabalho do dia?')) await endDay();
+        if (confirm('Encerrar a sessão de trabalho?')) await endDay();
     });
     document.getElementById('btnNewDay')?.addEventListener('click', () => {
-        if (confirm('Iniciar novo dia?')) newDay();
+        if (confirm('Iniciar nova sessão?')) newDay();
     });
     document.querySelectorAll('.history-day-header').forEach(el => {
         el.addEventListener('click', e => {
