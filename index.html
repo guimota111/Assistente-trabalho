@@ -556,16 +556,14 @@ function calcDayStats(day) {
         cases: day.cases || [],
         pauses: day.pauses || [],
     }];
-    let allCases = [], workMs = 0, pauseMs = 0;
+    let allCases = [], pauseMs = 0;
     for (const s of sessions) {
         allCases = allCases.concat(s.cases || []);
         const spauses = s.pauses || [];
-        const sPauseMs = spauses.reduce((a, p) => a + ts(p.end) - ts(p.start), 0);
-        pauseMs += sPauseMs;
-        if (s.workStartTime && s.dayEndTime) {
-            workMs += Math.max(0, ts(s.dayEndTime) - ts(s.workStartTime) - sPauseMs);
-        }
+        pauseMs += spauses.reduce((a, p) => a + ts(p.end) - ts(p.start), 0);
     }
+    // tempo trabalhado = soma das durações dos casos (assim apagar um caso desconta o tempo automaticamente)
+    const workMs = allCases.reduce((a, c) => a + c.duration, 0);
     const totalCases   = allCases.length;
     const totalSlides  = allCases.reduce((a, c) => a + c.slides, 0);
     const totalCasesMs = allCases.reduce((a, c) => a + c.duration, 0);
@@ -1044,8 +1042,7 @@ function renderHistoryDay(day) {
         const sCases  = session.cases  || [];
         const sPauses = session.pauses || [];
         const sPauseMs = sPauses.reduce((a, p) => a + ts(p.end) - ts(p.start), 0);
-        const sWorkMs  = (session.workStartTime && session.dayEndTime)
-            ? Math.max(0, ts(session.dayEndTime) - ts(session.workStartTime) - sPauseMs) : 0;
+        const sWorkMs  = sCases.reduce((a, c) => a + c.duration, 0);
         const startHour = session.workStartTime
             ? new Date(session.workStartTime).toLocaleTimeString('pt-BR', {hour:'2-digit', minute:'2-digit'}) : '--';
         const endHour = session.dayEndTime
