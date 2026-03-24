@@ -291,7 +291,7 @@
         .case-list { display: flex; flex-direction: column; gap: 8px; }
         .case-item {
             display: grid;
-            grid-template-columns: auto 1fr auto auto;
+            grid-template-columns: auto 1fr auto auto auto;
             align-items: center;
             gap: 12px;
             padding: 11px 14px;
@@ -343,6 +343,31 @@
         .hday-cases-list { display: flex; flex-direction: column; gap: 6px; }
         .hday-case-row { display: grid; grid-template-columns: auto 1fr auto auto; gap: 10px; align-items: center; padding: 9px 12px; background: var(--card); border-radius: 8px; font-size: 0.83rem; border: 1px solid var(--border); }
         .empty-history { text-align: center; color: var(--text-muted); padding: 40px 20px; font-size: 0.9rem; line-height: 1.6; }
+        .btn-delete {
+            background: none;
+            border: none;
+            color: #cbd5e1;
+            cursor: pointer;
+            padding: 3px 5px;
+            border-radius: 5px;
+            font-size: 0.85rem;
+            line-height: 1;
+            transition: color 0.15s, background 0.15s;
+        }
+        .btn-delete:hover { color: var(--danger); background: #fee2e2; }
+        .btn-delete-day {
+            background: none;
+            border: none;
+            color: #cbd5e1;
+            cursor: pointer;
+            padding: 5px 8px;
+            border-radius: 6px;
+            font-size: 1rem;
+            line-height: 1;
+            transition: color 0.15s, background 0.15s;
+            flex-shrink: 0;
+        }
+        .btn-delete-day:hover { color: var(--danger); background: #fee2e2; }
     </style>
 </head>
 <body>
@@ -655,6 +680,28 @@ function newDay() {
     renderRoot();
 }
 
+function deleteCase(caseId) {
+    if (!confirm('Apagar este caso?')) return;
+    data.cases = data.cases.filter(c => c.id !== caseId);
+    data.cases.forEach((c, i) => c.id = i + 1);
+    saveData();
+    renderRoot();
+}
+
+async function deleteHistoryDay(date) {
+    const label = formatDateShort(date);
+    if (!confirm(`Apagar o dia "${label}" do histórico?`)) return;
+    try {
+        await historyRef(date).delete();
+        if (historyCache) delete historyCache[date];
+        expandedDays.delete(date);
+        renderRoot();
+    } catch (e) {
+        console.warn('deleteHistoryDay:', e);
+        alert('Erro ao apagar o dia.');
+    }
+}
+
 /* ──────────── Timer ──────────── */
 function startTimer() {
     stopTimer();
@@ -847,6 +894,7 @@ function renderCasesList() {
             <span class="case-slides">${c.slides} lâmina${c.slides !== 1 ? 's' : ''}</span>
             <span class="case-time">${new Date(c.endTime).toLocaleTimeString('pt-BR', {hour: '2-digit', minute: '2-digit'})}</span>
             <span class="case-dur">${formatShort(c.duration)}</span>
+            <button class="btn-delete" data-delete-case="${c.id}" title="Apagar caso">✕</button>
         </div>`).join('');
     return title + `<div class="case-list">${rows}</div></div>`;
 }
@@ -888,6 +936,7 @@ function renderHistoryDay(day) {
                 <div class="hday-time">${s.avgPerCase > 0 ? formatShort(s.avgPerCase) + '/caso' : '--'}</div>
             </div>
             <span class="hday-chevron${isOpen ? ' open' : ''}">▼</span>
+            <button class="btn-delete-day" data-delete-day="${day.date}" title="Apagar este dia">✕</button>
         </div>
     </div>`;
     if (!isOpen) return `<div class="history-day">${header}</div>`;
@@ -935,12 +984,22 @@ function attachEvents() {
         if (confirm('Iniciar novo dia?')) newDay();
     });
     document.querySelectorAll('.history-day-header').forEach(el => {
-        el.addEventListener('click', () => {
+        el.addEventListener('click', e => {
+            if (e.target.closest('.btn-delete-day')) return;
             const date = el.dataset.date;
             if (expandedDays.has(date)) expandedDays.delete(date);
             else expandedDays.add(date);
             renderRoot();
         });
+    });
+    document.querySelectorAll('.btn-delete-day').forEach(btn => {
+        btn.addEventListener('click', e => {
+            e.stopPropagation();
+            deleteHistoryDay(btn.dataset.deleteDay);
+        });
+    });
+    document.querySelectorAll('.btn-delete[data-delete-case]').forEach(btn => {
+        btn.addEventListener('click', () => deleteCase(parseInt(btn.dataset.deleteCase)));
     });
 }
 
