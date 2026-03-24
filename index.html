@@ -4,6 +4,12 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Controle de Laudos</title>
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#2563eb">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Laudos">
+    <link rel="apple-touch-icon" href="icon.svg">
     <style>
         :root {
             --primary: #2563eb;
@@ -29,17 +35,109 @@
             background: var(--bg);
             color: var(--text);
             min-height: 100vh;
-            padding: 24px 16px 48px;
         }
 
-        .container { max-width: 760px; margin: 0 auto; }
+        /* ── Loading ── */
+        .loading-screen {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            gap: 16px;
+        }
+        .spinner {
+            width: 44px;
+            height: 44px;
+            border: 4px solid var(--border);
+            border-top-color: var(--primary);
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .loading-text { color: var(--text-muted); font-size: 0.9rem; }
 
-        /* Header */
+        /* ── Login ── */
+        .login-screen {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            padding: 24px;
+            background: var(--bg);
+        }
+        .login-card {
+            background: var(--card);
+            border-radius: 20px;
+            padding: 48px 36px;
+            text-align: center;
+            box-shadow: 0 4px 24px rgba(0,0,0,0.08);
+            border: 1px solid var(--border);
+            max-width: 360px;
+            width: 100%;
+        }
+        .login-icon {
+            font-size: 3rem;
+            margin-bottom: 16px;
+        }
+        .login-card h1 { font-size: 1.5rem; font-weight: 700; margin-bottom: 8px; }
+        .login-card p { color: var(--text-muted); font-size: 0.9rem; margin-bottom: 32px; line-height: 1.5; }
+        .btn-google {
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+            padding: 12px 24px;
+            background: white;
+            border: 1.5px solid var(--border);
+            border-radius: 10px;
+            font-size: 0.95rem;
+            font-weight: 600;
+            cursor: pointer;
+            color: var(--text);
+            transition: box-shadow 0.15s, border-color 0.15s;
+            width: 100%;
+            justify-content: center;
+        }
+        .btn-google:hover { border-color: #aaa; box-shadow: 0 2px 8px rgba(0,0,0,0.08); }
+
+        /* ── App layout ── */
+        .container {
+            max-width: 760px;
+            margin: 0 auto;
+            padding: 20px 16px 48px;
+        }
+
+        /* ── User bar ── */
+        .user-bar {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            justify-content: flex-end;
+            margin-bottom: 10px;
+        }
+        .user-avatar {
+            width: 28px;
+            height: 28px;
+            border-radius: 50%;
+            object-fit: cover;
+        }
+        .user-name { font-size: 0.85rem; color: var(--text-muted); font-weight: 500; }
+        .btn-signout {
+            background: none;
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            padding: 3px 10px;
+            font-size: 0.78rem;
+            color: var(--text-muted);
+            cursor: pointer;
+        }
+        .btn-signout:hover { background: var(--bg); }
+
         header { text-align: center; margin-bottom: 20px; }
         header h1 { font-size: 1.6rem; font-weight: 700; letter-spacing: -0.02em; }
         header .date { color: var(--text-muted); margin-top: 4px; font-size: 0.9rem; text-transform: capitalize; }
 
-        /* Tabs */
+        /* ── Tabs ── */
         .tabs {
             display: flex;
             background: var(--card);
@@ -61,12 +159,9 @@
             color: var(--text-muted);
             transition: all 0.15s;
         }
-        .tab-btn.active {
-            background: var(--primary);
-            color: white;
-        }
+        .tab-btn.active { background: var(--primary); color: white; }
 
-        /* Card */
+        /* ── Card ── */
         .card {
             background: var(--card);
             border-radius: 14px;
@@ -76,9 +171,8 @@
             margin-bottom: 14px;
         }
 
-        /* Status card */
+        /* ── Status card ── */
         .status-card { text-align: center; }
-
         .state-badge {
             display: inline-block;
             padding: 4px 14px;
@@ -128,7 +222,7 @@
             font-variant-numeric: tabular-nums;
         }
 
-        /* Register area */
+        /* ── Register area ── */
         .register-area {
             display: flex;
             align-items: center;
@@ -151,7 +245,7 @@
         }
         .slides-input:focus { border-color: var(--primary); }
 
-        /* Buttons */
+        /* ── Buttons ── */
         .btn {
             display: inline-flex;
             align-items: center;
@@ -178,10 +272,9 @@
         .btn-outline { background: transparent; border: 1.5px solid var(--border); color: var(--text); }
         .btn-outline:hover:not(:disabled) { background: var(--bg); }
         .btn-lg { padding: 15px 36px; font-size: 1.05rem; border-radius: 11px; }
-
         .actions { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; }
 
-        /* Stats grid (today) */
+        /* ── Stats grid ── */
         .stats-grid {
             display: grid;
             grid-template-columns: repeat(3, 1fr);
@@ -193,7 +286,7 @@
         .stat-value { font-size: 1.35rem; font-weight: 700; line-height: 1; margin-bottom: 5px; font-variant-numeric: tabular-nums; }
         .stat-label { font-size: 0.7rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.06em; }
 
-        /* Cases list */
+        /* ── Cases list ── */
         .cases-card h2 { font-size: 0.95rem; font-weight: 600; margin-bottom: 14px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; }
         .case-list { display: flex; flex-direction: column; gap: 8px; }
         .case-item {
@@ -212,13 +305,13 @@
         .case-dur { font-variant-numeric: tabular-nums; font-weight: 600; text-align: right; min-width: 50px; }
         .empty-cases { text-align: center; color: var(--text-muted); padding: 20px; font-size: 0.88rem; }
 
-        /* End of day summary */
+        /* ── End of day summary ── */
         .summary-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; margin: 20px 0; }
         .summary-item { background: var(--bg); border-radius: 10px; padding: 16px 14px; }
         .summary-item .s-value { font-size: 1.8rem; font-weight: 700; line-height: 1; font-variant-numeric: tabular-nums; }
         .summary-item .s-label { font-size: 0.78rem; color: var(--text-muted); margin-top: 4px; }
 
-        /* ── History page ── */
+        /* ── History ── */
         .history-totals {
             display: grid;
             grid-template-columns: repeat(4, 1fr);
@@ -226,98 +319,65 @@
             margin-bottom: 14px;
         }
         @media (max-width: 560px) { .history-totals { grid-template-columns: repeat(2, 1fr); } }
-
         .total-item { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 16px 12px; text-align: center; box-shadow: var(--shadow); }
         .total-value { font-size: 1.5rem; font-weight: 700; line-height: 1; margin-bottom: 4px; font-variant-numeric: tabular-nums; }
         .total-label { font-size: 0.7rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.06em; }
-
-        .history-section-title {
-            font-size: 0.82rem;
-            font-weight: 600;
-            color: var(--text-muted);
-            text-transform: uppercase;
-            letter-spacing: 0.08em;
-            margin-bottom: 10px;
-        }
-
-        .history-day {
-            background: var(--card);
-            border: 1px solid var(--border);
-            border-radius: 12px;
-            margin-bottom: 10px;
-            box-shadow: var(--shadow);
-            overflow: hidden;
-        }
-        .history-day-header {
-            display: grid;
-            grid-template-columns: 1fr auto;
-            align-items: center;
-            padding: 16px 18px;
-            cursor: pointer;
-            user-select: none;
-            gap: 12px;
-        }
+        .history-section-title { font-size: 0.82rem; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 10px; }
+        .history-day { background: var(--card); border: 1px solid var(--border); border-radius: 12px; margin-bottom: 10px; box-shadow: var(--shadow); overflow: hidden; }
+        .history-day-header { display: grid; grid-template-columns: 1fr auto; align-items: center; padding: 16px 18px; cursor: pointer; user-select: none; gap: 12px; }
         .history-day-header:hover { background: #f8fafc; }
-
         .hday-left { display: flex; flex-direction: column; gap: 4px; }
         .hday-date { font-weight: 700; font-size: 0.95rem; text-transform: capitalize; }
         .hday-meta { font-size: 0.82rem; color: var(--text-muted); }
-
         .hday-right { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; }
         .hday-cases { font-size: 1.1rem; font-weight: 700; color: var(--primary); }
         .hday-time { font-size: 0.8rem; color: var(--text-muted); font-variant-numeric: tabular-nums; }
-
         .hday-chevron { font-size: 0.8rem; color: var(--text-muted); margin-left: 8px; transition: transform 0.2s; }
         .hday-chevron.open { transform: rotate(180deg); }
-
-        .history-day-body {
-            border-top: 1px solid var(--border);
-            padding: 14px 18px;
-            background: #fafbfc;
-        }
-        .hday-stats-row {
-            display: grid;
-            grid-template-columns: repeat(3, 1fr);
-            gap: 8px;
-            margin-bottom: 14px;
-        }
+        .history-day-body { border-top: 1px solid var(--border); padding: 14px 18px; background: #fafbfc; }
+        .hday-stats-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 14px; }
         @media (max-width: 480px) { .hday-stats-row { grid-template-columns: repeat(2, 1fr); } }
         .hday-stat { background: var(--card); border-radius: 8px; padding: 10px 12px; border: 1px solid var(--border); }
         .hday-stat-val { font-size: 1rem; font-weight: 700; font-variant-numeric: tabular-nums; }
         .hday-stat-lbl { font-size: 0.68rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; margin-top: 2px; }
-
         .hday-cases-list { display: flex; flex-direction: column; gap: 6px; }
-        .hday-case-row {
-            display: grid;
-            grid-template-columns: auto 1fr auto auto;
-            gap: 10px;
-            align-items: center;
-            padding: 9px 12px;
-            background: var(--card);
-            border-radius: 8px;
-            font-size: 0.83rem;
-            border: 1px solid var(--border);
-        }
-
-        .empty-history { text-align: center; color: var(--text-muted); padding: 40px 20px; font-size: 0.9rem; }
+        .hday-case-row { display: grid; grid-template-columns: auto 1fr auto auto; gap: 10px; align-items: center; padding: 9px 12px; background: var(--card); border-radius: 8px; font-size: 0.83rem; border: 1px solid var(--border); }
+        .empty-history { text-align: center; color: var(--text-muted); padding: 40px 20px; font-size: 0.9rem; line-height: 1.6; }
     </style>
 </head>
 <body>
-<div class="container">
-    <header>
-        <h1>Controle de Laudos</h1>
-        <div class="date" id="headerDate"></div>
-    </header>
+<div id="root"></div>
 
-    <div class="tabs">
-        <button class="tab-btn active" id="tabToday" onclick="setView('today')">Hoje</button>
-        <button class="tab-btn" id="tabHistory" onclick="setView('history')">Histórico</button>
-    </div>
-
-    <div id="app"></div>
-</div>
-
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
 <script>
+/* ──────────── Firebase ──────────── */
+const firebaseConfig = {
+    apiKey: "AIzaSyBWsWY3OJOZvy-2YVSWqDK_38dRi7eXAqA",
+    authDomain: "laudos-a7009.firebaseapp.com",
+    projectId: "laudos-a7009",
+    storageBucket: "laudos-a7009.firebasestorage.app",
+    messagingSenderId: "225605061167",
+    appId: "1:225605061167:web:f25c92f63b2617392114da"
+};
+firebase.initializeApp(firebaseConfig);
+const db  = firebase.firestore();
+const auth = firebase.auth();
+
+// Cache dados offline automaticamente
+db.enablePersistence({ synchronizeTabs: true })
+  .catch(err => console.warn('Persistence:', err.code));
+
+/* ──────────── State ──────────── */
+let data         = defaultData();
+let currentUser  = null;
+let authReady    = false;
+let timerInterval = null;
+let currentView  = 'today';
+let expandedDays = new Set();
+let historyCache = null;
+
 /* ──────────── Utilities ──────────── */
 function now()      { return Date.now(); }
 function ts(iso)    { return new Date(iso).getTime(); }
@@ -345,13 +405,6 @@ function formatShort(ms) {
     return `${sec}s`;
 }
 
-function formatDateLong(dateStr) {
-    const [y, m, d] = dateStr.split('-').map(Number);
-    return new Date(y, m - 1, d).toLocaleDateString('pt-BR', {
-        weekday: 'long', day: 'numeric', month: 'long', year: 'numeric'
-    });
-}
-
 function formatDateShort(dateStr) {
     const [y, m, d] = dateStr.split('-').map(Number);
     return new Date(y, m - 1, d).toLocaleDateString('pt-BR', {
@@ -364,46 +417,7 @@ function setText(id, val) {
     if (el) el.textContent = val;
 }
 
-/* ──────────── History storage ──────────── */
-const STORAGE_KEY = 'laudos_v1';
-const HISTORY_KEY = 'laudos_history_v1';
-
-function loadHistory() {
-    try {
-        const raw = localStorage.getItem(HISTORY_KEY);
-        if (raw) return JSON.parse(raw);
-    } catch (_) {}
-    return {};
-}
-
-function saveToHistory(dayData) {
-    if (!dayData.workStartTime || dayData.cases.length === 0) return;
-    const history = loadHistory();
-    history[dayData.date] = {
-        date: dayData.date,
-        workStartTime: dayData.workStartTime,
-        dayEndTime: dayData.dayEndTime || new Date().toISOString(),
-        cases: dayData.cases,
-        pauses: dayData.pauses,
-    };
-    localStorage.setItem(HISTORY_KEY, JSON.stringify(history));
-}
-
-function calcDayStats(day) {
-    const totalCases  = day.cases.length;
-    const totalSlides = day.cases.reduce((a, c) => a + c.slides, 0);
-    const totalCasesMs = day.cases.reduce((a, c) => a + c.duration, 0);
-    const avgPerCase  = totalCases  > 0 ? totalCasesMs / totalCases  : 0;
-    const avgPerSlide = totalSlides > 0 ? totalCasesMs / totalSlides : 0;
-    const pauseMs     = day.pauses.reduce((a, p) => a + ts(p.end) - ts(p.start), 0);
-    let workMs = 0;
-    if (day.workStartTime && day.dayEndTime) {
-        workMs = Math.max(0, ts(day.dayEndTime) - ts(day.workStartTime) - pauseMs);
-    }
-    return { totalCases, totalSlides, totalCasesMs, avgPerCase, avgPerSlide, workMs, pauseMs };
-}
-
-/* ──────────── Current day state ──────────── */
+/* ──────────── Data defaults ──────────── */
 function defaultData() {
     return {
         state: 'idle',
@@ -417,30 +431,108 @@ function defaultData() {
     };
 }
 
-function loadData() {
+/* ──────────── Firestore refs ──────────── */
+function currentRef()      { return db.collection('users').doc(currentUser.uid).collection('data').doc('current'); }
+function historyRef(date)  { return db.collection('users').doc(currentUser.uid).collection('history').doc(date); }
+function historyCollRef()  { return db.collection('users').doc(currentUser.uid).collection('history'); }
+
+/* ──────────── Data operations ──────────── */
+async function initData() {
     try {
-        const raw = localStorage.getItem(STORAGE_KEY);
-        if (raw) {
-            const d = JSON.parse(raw);
+        const doc = await currentRef().get();
+        if (doc.exists) {
+            const d = doc.data();
+            d.cases  = d.cases  || [];
+            d.pauses = d.pauses || [];
             if (d.date !== todayStr()) {
-                // Different day — auto-save to history if there's data, then reset
-                if (d.workStartTime && d.cases.length > 0) saveToHistory(d);
-                return defaultData();
+                if (d.workStartTime && d.cases.length > 0) await saveToHistory(d);
+                data = defaultData();
+                saveData();
+            } else {
+                data = d;
             }
-            return d;
+        } else {
+            data = defaultData();
+            saveData();
         }
-    } catch (_) {}
-    return defaultData();
+    } catch (e) {
+        console.warn('initData:', e);
+        data = defaultData();
+    }
 }
 
 function saveData() {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+    if (!currentUser) return;
+    currentRef().set(data).catch(e => console.warn('saveData:', e));
 }
 
-let data = loadData();
-let timerInterval = null;
-let currentView = 'today';
-let expandedDays = new Set();
+async function saveToHistory(dayData) {
+    if (!currentUser || !dayData.workStartTime || !(dayData.cases || []).length) return;
+    const entry = {
+        date: dayData.date,
+        workStartTime: dayData.workStartTime,
+        dayEndTime: dayData.dayEndTime || new Date().toISOString(),
+        cases: dayData.cases,
+        pauses: dayData.pauses || [],
+    };
+    historyCache = null;
+    try { await historyRef(dayData.date).set(entry); }
+    catch (e) { console.warn('saveToHistory:', e); }
+}
+
+async function loadHistory() {
+    if (historyCache) return historyCache;
+    if (!currentUser) return {};
+    try {
+        const snap = await historyCollRef().get();
+        historyCache = {};
+        snap.forEach(doc => { historyCache[doc.id] = doc.data(); });
+    } catch (e) {
+        console.warn('loadHistory:', e);
+        historyCache = {};
+    }
+    return historyCache;
+}
+
+function calcDayStats(day) {
+    const cases       = day.cases  || [];
+    const pauses      = day.pauses || [];
+    const totalCases  = cases.length;
+    const totalSlides = cases.reduce((a, c) => a + c.slides, 0);
+    const totalCasesMs = cases.reduce((a, c) => a + c.duration, 0);
+    const pauseMs     = pauses.reduce((a, p) => a + ts(p.end) - ts(p.start), 0);
+    let workMs = 0;
+    if (day.workStartTime && day.dayEndTime) {
+        workMs = Math.max(0, ts(day.dayEndTime) - ts(day.workStartTime) - pauseMs);
+    }
+    return {
+        totalCases,
+        totalSlides,
+        totalCasesMs,
+        avgPerCase:  totalCases  > 0 ? totalCasesMs / totalCases  : 0,
+        avgPerSlide: totalSlides > 0 ? totalCasesMs / totalSlides : 0,
+        workMs,
+        pauseMs,
+    };
+}
+
+/* ──────────── Auth ──────────── */
+async function signIn() {
+    const provider = new firebase.auth.GoogleAuthProvider();
+    try {
+        await auth.signInWithPopup(provider);
+    } catch (e) {
+        if (e.code !== 'auth/popup-closed-by-user' && e.code !== 'auth/cancelled-popup-request') {
+            await auth.signInWithRedirect(provider);
+        }
+    }
+}
+
+async function doSignOut() {
+    stopTimer();
+    historyCache = null;
+    await auth.signOut();
+}
 
 /* ──────────── Time calculations ──────────── */
 function getTotalWorkingTime() {
@@ -502,7 +594,7 @@ function startWork() {
     data.workStartTime = t;
     data.currentCaseStart = t;
     saveData();
-    render();
+    renderRoot();
     startTimer();
 }
 
@@ -525,14 +617,14 @@ function registerCase(slides) {
     });
     data.currentCaseStart = endTime;
     saveData();
-    render();
+    renderRoot();
 }
 
 function pauseWork() {
     data.state = 'paused';
     data.currentPauseStart = new Date().toISOString();
     saveData();
-    render();
+    renderRoot();
 }
 
 function resumeWork() {
@@ -540,10 +632,10 @@ function resumeWork() {
     data.currentPauseStart = null;
     data.state = 'working';
     saveData();
-    render();
+    renderRoot();
 }
 
-function endDay() {
+async function endDay() {
     if (data.state === 'paused') {
         data.pauses.push({ start: data.currentPauseStart, end: new Date().toISOString() });
         data.currentPauseStart = null;
@@ -551,16 +643,16 @@ function endDay() {
     data.state = 'ended';
     data.dayEndTime = new Date().toISOString();
     saveData();
-    saveToHistory(data);
+    await saveToHistory(data);
     stopTimer();
-    render();
+    renderRoot();
 }
 
 function newDay() {
     stopTimer();
     data = defaultData();
     saveData();
-    render();
+    renderRoot();
 }
 
 /* ──────────── Timer ──────────── */
@@ -568,11 +660,9 @@ function startTimer() {
     stopTimer();
     timerInterval = setInterval(tickTimer, 1000);
 }
-
 function stopTimer() {
     if (timerInterval) { clearInterval(timerInterval); timerInterval = null; }
 }
-
 function tickTimer() {
     const s = getStats();
     setText('mainTimer',        formatDuration(getTotalWorkingTime()));
@@ -585,34 +675,86 @@ function tickTimer() {
 }
 
 /* ──────────── View ──────────── */
-function setView(view) {
+async function setView(view) {
     currentView = view;
-    document.getElementById('tabToday').classList.toggle('active', view === 'today');
-    document.getElementById('tabHistory').classList.toggle('active', view === 'history');
-    render();
+    if (view === 'history' && !historyCache) {
+        document.getElementById('app').innerHTML =
+            '<div style="text-align:center;padding:40px;color:#64748b"><div class="spinner" style="margin:0 auto 12px"></div>Carregando histórico...</div>';
+        await loadHistory();
+    }
+    renderRoot();
 }
 
 /* ──────────── Render ──────────── */
-function render() {
-    document.getElementById('headerDate').textContent =
-        new Date().toLocaleDateString('pt-BR', {
-            weekday: 'long', day: 'numeric', month: 'long', year: 'numeric'
-        });
+function renderRoot() {
+    const root = document.getElementById('root');
+    if (!authReady) { root.innerHTML = renderLoadingHTML(); return; }
+    if (!currentUser) { root.innerHTML = renderLoginHTML(); attachEvents(); return; }
 
-    const app = document.getElementById('app');
-    if (currentView === 'history') {
-        app.innerHTML = renderHistory();
-    } else {
-        const s = getStats();
-        if      (data.state === 'idle')    app.innerHTML = renderIdle();
-        else if (data.state === 'working') app.innerHTML = renderWorking(s);
-        else if (data.state === 'paused')  app.innerHTML = renderPaused(s);
-        else                               app.innerHTML = renderEnded(s);
-    }
+    const date = new Date().toLocaleDateString('pt-BR', {
+        weekday: 'long', day: 'numeric', month: 'long', year: 'numeric'
+    });
+    const avatarHTML = currentUser.photoURL
+        ? `<img class="user-avatar" src="${currentUser.photoURL}" alt="">`
+        : '';
+    const name = (currentUser.displayName || 'Usuário').split(' ')[0];
+    const contentHTML = currentView === 'history'
+        ? (historyCache ? renderHistory() : '<div style="text-align:center;padding:40px;color:#64748b">Carregando...</div>')
+        : renderToday();
+
+    root.innerHTML = `
+    <div class="container">
+        <header>
+            <div class="user-bar">
+                ${avatarHTML}
+                <span class="user-name">${name}</span>
+                <button class="btn-signout" id="btnSignOut">Sair</button>
+            </div>
+            <h1>Controle de Laudos</h1>
+            <div class="date">${date}</div>
+        </header>
+        <div class="tabs">
+            <button class="tab-btn ${currentView === 'today' ? 'active' : ''}" id="tabToday">Hoje</button>
+            <button class="tab-btn ${currentView === 'history' ? 'active' : ''}" id="tabHistory">Histórico</button>
+        </div>
+        <div id="app">${contentHTML}</div>
+    </div>`;
+
     attachEvents();
 }
 
-/* ── Today views ── */
+function renderLoadingHTML() {
+    return `<div class="loading-screen"><div class="spinner"></div><div class="loading-text">Carregando...</div></div>`;
+}
+
+function renderLoginHTML() {
+    return `
+    <div class="login-screen">
+        <div class="login-card">
+            <div class="login-icon">📋</div>
+            <h1>Controle de Laudos</h1>
+            <p>Entre com sua conta Google para sincronizar seus dados entre todos os dispositivos.</p>
+            <button class="btn-google" id="btnSignIn">
+                <svg viewBox="0 0 24 24" width="20" height="20">
+                    <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+                    <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+                    <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z"/>
+                    <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
+                </svg>
+                Entrar com Google
+            </button>
+        </div>
+    </div>`;
+}
+
+function renderToday() {
+    const s = getStats();
+    if      (data.state === 'idle')    return renderIdle();
+    else if (data.state === 'working') return renderWorking(s);
+    else if (data.state === 'paused')  return renderPaused(s);
+    else                               return renderEnded(s);
+}
+
 function renderIdle() {
     return `
     <div class="card status-card state-idle">
@@ -670,30 +812,12 @@ function renderEnded(s) {
         <div class="main-timer">${formatDuration(getTotalWorkingTime())}</div>
         <div class="timer-label">Total trabalhado hoje</div>
         <div class="summary-grid">
-            <div class="summary-item">
-                <div class="s-value">${s.totalCases}</div>
-                <div class="s-label">Casos laudados</div>
-            </div>
-            <div class="summary-item">
-                <div class="s-value">${s.totalSlides}</div>
-                <div class="s-label">Lâminas analisadas</div>
-            </div>
-            <div class="summary-item">
-                <div class="s-value">${s.totalCases > 0 ? formatShort(s.avgPerCase) : '--'}</div>
-                <div class="s-label">Média por caso</div>
-            </div>
-            <div class="summary-item">
-                <div class="s-value">${s.totalSlides > 0 ? formatShort(s.avgPerSlide) : '--'}</div>
-                <div class="s-label">Média por lâmina</div>
-            </div>
-            <div class="summary-item">
-                <div class="s-value">${totalPause > 0 ? formatShort(totalPause) : '0s'}</div>
-                <div class="s-label">Tempo em pausa</div>
-            </div>
-            <div class="summary-item">
-                <div class="s-value">${data.pauses.length}</div>
-                <div class="s-label">Pausas realizadas</div>
-            </div>
+            <div class="summary-item"><div class="s-value">${s.totalCases}</div><div class="s-label">Casos laudados</div></div>
+            <div class="summary-item"><div class="s-value">${s.totalSlides}</div><div class="s-label">Lâminas analisadas</div></div>
+            <div class="summary-item"><div class="s-value">${s.totalCases > 0 ? formatShort(s.avgPerCase) : '--'}</div><div class="s-label">Média por caso</div></div>
+            <div class="summary-item"><div class="s-value">${s.totalSlides > 0 ? formatShort(s.avgPerSlide) : '--'}</div><div class="s-label">Média por lâmina</div></div>
+            <div class="summary-item"><div class="s-value">${totalPause > 0 ? formatShort(totalPause) : '0s'}</div><div class="s-label">Tempo em pausa</div></div>
+            <div class="summary-item"><div class="s-value">${data.pauses.length}</div><div class="s-label">Pausas realizadas</div></div>
         </div>
         <div class="actions">
             <button class="btn btn-outline" id="btnNewDay">Iniciar Novo Dia</button>
@@ -705,39 +829,18 @@ function renderEnded(s) {
 function renderStatsGrid(s) {
     return `
     <div class="stats-grid">
-        <div class="stat-item">
-            <div class="stat-value" id="statWork">${formatDuration(s.totalWorkMs)}</div>
-            <div class="stat-label">Trabalhado</div>
-        </div>
-        <div class="stat-item">
-            <div class="stat-value" id="statPause">${formatDuration(s.totalPauseMs)}</div>
-            <div class="stat-label">Em Pausa</div>
-        </div>
-        <div class="stat-item">
-            <div class="stat-value">${s.totalCases}</div>
-            <div class="stat-label">Casos</div>
-        </div>
-        <div class="stat-item">
-            <div class="stat-value">${s.totalSlides}</div>
-            <div class="stat-label">Lâminas</div>
-        </div>
-        <div class="stat-item">
-            <div class="stat-value" id="statAvgCase">${s.totalCases > 0 ? formatShort(s.avgPerCase) : '--'}</div>
-            <div class="stat-label">Média/Caso</div>
-        </div>
-        <div class="stat-item">
-            <div class="stat-value" id="statAvgSlide">${s.totalSlides > 0 ? formatShort(s.avgPerSlide) : '--'}</div>
-            <div class="stat-label">Média/Lâmina</div>
-        </div>
+        <div class="stat-item"><div class="stat-value" id="statWork">${formatDuration(s.totalWorkMs)}</div><div class="stat-label">Trabalhado</div></div>
+        <div class="stat-item"><div class="stat-value" id="statPause">${formatDuration(s.totalPauseMs)}</div><div class="stat-label">Em Pausa</div></div>
+        <div class="stat-item"><div class="stat-value">${s.totalCases}</div><div class="stat-label">Casos</div></div>
+        <div class="stat-item"><div class="stat-value">${s.totalSlides}</div><div class="stat-label">Lâminas</div></div>
+        <div class="stat-item"><div class="stat-value" id="statAvgCase">${s.totalCases > 0 ? formatShort(s.avgPerCase) : '--'}</div><div class="stat-label">Média/Caso</div></div>
+        <div class="stat-item"><div class="stat-value" id="statAvgSlide">${s.totalSlides > 0 ? formatShort(s.avgPerSlide) : '--'}</div><div class="stat-label">Média/Lâmina</div></div>
     </div>`;
 }
 
 function renderCasesList() {
-    const title = `<div class="card cases-card">
-        <h2>Casos de Hoje${data.cases.length > 0 ? ' (' + data.cases.length + ')' : ''}</h2>`;
-    if (data.cases.length === 0) {
-        return title + `<div class="empty-cases">Nenhum caso registrado ainda.</div></div>`;
-    }
+    const title = `<div class="card cases-card"><h2>Casos de Hoje${data.cases.length > 0 ? ' (' + data.cases.length + ')' : ''}</h2>`;
+    if (data.cases.length === 0) return title + `<div class="empty-cases">Nenhum caso registrado ainda.</div></div>`;
     const rows = [...data.cases].reverse().map(c => `
         <div class="case-item">
             <span class="case-num">Caso #${c.id}</span>
@@ -748,60 +851,31 @@ function renderCasesList() {
     return title + `<div class="case-list">${rows}</div></div>`;
 }
 
-/* ── History view ── */
 function renderHistory() {
-    const history = loadHistory();
-    const days = Object.values(history).sort((a, b) => b.date.localeCompare(a.date));
-
+    const days = Object.values(historyCache).sort((a, b) => b.date.localeCompare(a.date));
     if (days.length === 0) {
         return `<div class="empty-history">Nenhum dia registrado ainda.<br>Encerre seu primeiro dia de trabalho para ver o histórico.</div>`;
     }
-
-    // All-time totals
-    let allCases = 0, allSlides = 0, allWorkMs = 0, allCasesMs = 0;
-    let bestDay = null;
+    let allCases = 0, allSlides = 0, allCasesMs = 0;
     for (const day of days) {
         const s = calcDayStats(day);
         allCases   += s.totalCases;
         allSlides  += s.totalSlides;
-        allWorkMs  += s.workMs;
         allCasesMs += s.totalCasesMs;
-        if (!bestDay || s.totalCases > calcDayStats(bestDay).totalCases) bestDay = day;
     }
-    const globalAvgCase  = allCases  > 0 ? allCasesMs / allCases  : 0;
-    const globalAvgSlide = allSlides > 0 ? allCasesMs / allSlides : 0;
-
-    const totalsHtml = `
+    const totals = `
     <div class="history-totals">
-        <div class="total-item">
-            <div class="total-value">${days.length}</div>
-            <div class="total-label">Dias trabalhados</div>
-        </div>
-        <div class="total-item">
-            <div class="total-value">${allCases}</div>
-            <div class="total-label">Total de casos</div>
-        </div>
-        <div class="total-item">
-            <div class="total-value">${allSlides}</div>
-            <div class="total-label">Total de lâminas</div>
-        </div>
-        <div class="total-item">
-            <div class="total-value">${formatShort(globalAvgCase)}</div>
-            <div class="total-label">Média geral/caso</div>
-        </div>
+        <div class="total-item"><div class="total-value">${days.length}</div><div class="total-label">Dias trabalhados</div></div>
+        <div class="total-item"><div class="total-value">${allCases}</div><div class="total-label">Total de casos</div></div>
+        <div class="total-item"><div class="total-value">${allSlides}</div><div class="total-label">Total de lâminas</div></div>
+        <div class="total-item"><div class="total-value">${allCases > 0 ? formatShort(allCasesMs / allCases) : '--'}</div><div class="total-label">Média geral/caso</div></div>
     </div>`;
-
-    const daysHtml = days.map(day => renderHistoryDay(day)).join('');
-
-    return totalsHtml
-        + `<div class="history-section-title">Dias (${days.length})</div>`
-        + daysHtml;
+    return totals + `<div class="history-section-title">Dias (${days.length})</div>` + days.map(renderHistoryDay).join('');
 }
 
 function renderHistoryDay(day) {
     const s = calcDayStats(day);
     const isOpen = expandedDays.has(day.date);
-
     const header = `
     <div class="history-day-header" data-date="${day.date}">
         <div class="hday-left">
@@ -816,97 +890,82 @@ function renderHistoryDay(day) {
             <span class="hday-chevron${isOpen ? ' open' : ''}">▼</span>
         </div>
     </div>`;
-
     if (!isOpen) return `<div class="history-day">${header}</div>`;
-
     const statsRow = `
     <div class="hday-stats-row">
-        <div class="hday-stat">
-            <div class="hday-stat-val">${formatDuration(s.workMs)}</div>
-            <div class="hday-stat-lbl">Trabalhado</div>
-        </div>
-        <div class="hday-stat">
-            <div class="hday-stat-val">${formatShort(s.pauseMs) !== '--' ? formatShort(s.pauseMs) : '0s'}</div>
-            <div class="hday-stat-lbl">Em pausa</div>
-        </div>
-        <div class="hday-stat">
-            <div class="hday-stat-val">${s.avgPerCase > 0 ? formatShort(s.avgPerCase) : '--'}</div>
-            <div class="hday-stat-lbl">Média/caso</div>
-        </div>
-        <div class="hday-stat">
-            <div class="hday-stat-val">${s.avgPerSlide > 0 ? formatShort(s.avgPerSlide) : '--'}</div>
-            <div class="hday-stat-lbl">Média/lâmina</div>
-        </div>
-        <div class="hday-stat">
-            <div class="hday-stat-val">${s.totalCases}</div>
-            <div class="hday-stat-lbl">Casos</div>
-        </div>
-        <div class="hday-stat">
-            <div class="hday-stat-val">${s.totalSlides}</div>
-            <div class="hday-stat-lbl">Lâminas</div>
-        </div>
+        <div class="hday-stat"><div class="hday-stat-val">${formatDuration(s.workMs)}</div><div class="hday-stat-lbl">Trabalhado</div></div>
+        <div class="hday-stat"><div class="hday-stat-val">${s.pauseMs > 0 ? formatShort(s.pauseMs) : '0s'}</div><div class="hday-stat-lbl">Em pausa</div></div>
+        <div class="hday-stat"><div class="hday-stat-val">${s.avgPerCase > 0 ? formatShort(s.avgPerCase) : '--'}</div><div class="hday-stat-lbl">Média/caso</div></div>
+        <div class="hday-stat"><div class="hday-stat-val">${s.avgPerSlide > 0 ? formatShort(s.avgPerSlide) : '--'}</div><div class="hday-stat-lbl">Média/lâmina</div></div>
+        <div class="hday-stat"><div class="hday-stat-val">${s.totalCases}</div><div class="hday-stat-lbl">Casos</div></div>
+        <div class="hday-stat"><div class="hday-stat-val">${s.totalSlides}</div><div class="hday-stat-lbl">Lâminas</div></div>
     </div>`;
-
-    const casesRows = day.cases.map(c => `
+    const casesRows = [...(day.cases || [])].reverse().map(c => `
         <div class="hday-case-row">
             <span class="case-num">Caso #${c.id}</span>
             <span class="case-slides">${c.slides} lâmina${c.slides !== 1 ? 's' : ''}</span>
             <span class="case-time">${new Date(c.endTime).toLocaleTimeString('pt-BR', {hour: '2-digit', minute: '2-digit'})}</span>
             <span class="case-dur">${formatShort(c.duration)}</span>
-        </div>`).reverse().join('');
-
-    const body = `
-    <div class="history-day-body">
-        ${statsRow}
-        <div class="hday-cases-list">${casesRows}</div>
-    </div>`;
-
-    return `<div class="history-day">${header}${body}</div>`;
+        </div>`).join('');
+    return `<div class="history-day">${header}<div class="history-day-body">${statsRow}<div class="hday-cases-list">${casesRows}</div></div></div>`;
 }
 
 /* ──────────── Events ──────────── */
 function attachEvents() {
+    document.getElementById('btnSignIn')?.addEventListener('click', signIn);
+    document.getElementById('btnSignOut')?.addEventListener('click', doSignOut);
+    document.getElementById('tabToday')?.addEventListener('click', () => setView('today'));
+    document.getElementById('tabHistory')?.addEventListener('click', () => setView('history'));
     document.getElementById('btnStart')?.addEventListener('click', startWork);
-
     document.getElementById('btnCase')?.addEventListener('click', () => {
         const input = document.getElementById('slidesInput');
         const slides = Math.max(1, parseInt(input.value) || 1);
         registerCase(slides);
-        setTimeout(() => {
-            const inp = document.getElementById('slidesInput');
-            if (inp) { inp.value = 1; inp.select(); }
-        }, 50);
+        setTimeout(() => { const i = document.getElementById('slidesInput'); if (i) { i.value = 1; i.select(); } }, 50);
     });
-
     document.getElementById('slidesInput')?.addEventListener('keydown', e => {
         if (e.key === 'Enter') document.getElementById('btnCase')?.click();
     });
-
     document.getElementById('btnPause')?.addEventListener('click', pauseWork);
     document.getElementById('btnResume')?.addEventListener('click', resumeWork);
-
-    document.getElementById('btnEnd')?.addEventListener('click', () => {
-        if (confirm('Encerrar o trabalho do dia?')) endDay();
+    document.getElementById('btnEnd')?.addEventListener('click', async () => {
+        if (confirm('Encerrar o trabalho do dia?')) await endDay();
     });
-
     document.getElementById('btnNewDay')?.addEventListener('click', () => {
         if (confirm('Iniciar novo dia?')) newDay();
     });
-
-    // History day expand/collapse
     document.querySelectorAll('.history-day-header').forEach(el => {
         el.addEventListener('click', () => {
             const date = el.dataset.date;
             if (expandedDays.has(date)) expandedDays.delete(date);
             else expandedDays.add(date);
-            render();
+            renderRoot();
         });
     });
 }
 
 /* ──────────── Init ──────────── */
-render();
-if (data.state === 'working' || data.state === 'paused') startTimer();
+auth.onAuthStateChanged(async user => {
+    currentUser = user;
+    authReady   = true;
+    if (user) {
+        await initData();
+        renderRoot();
+        if (data.state === 'working' || data.state === 'paused') startTimer();
+    } else {
+        stopTimer();
+        data = defaultData();
+        renderRoot();
+    }
+});
+
+if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+        navigator.serviceWorker.register('/Assistente-trabalho/sw.js', {
+            scope: '/Assistente-trabalho/'
+        }).catch(() => {});
+    });
+}
 </script>
 </body>
 </html>
