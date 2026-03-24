@@ -15,12 +15,10 @@ Patologista que:
 ## Onde está hospedado
 - **GitHub:** https://github.com/guimota111/Assistente-trabalho
 - **App ao vivo (GitHub Pages):** https://guimota111.github.io/Assistente-trabalho/
-- **Branch atual de desenvolvimento:** `proximas-funcoes`
-- **Branch estável:** `master`
+- **Branch de desenvolvimento e produção:** `master` (deploy direto na master)
 
 ### Fluxo de deploy
-1. Desenvolver na branch `proximas-funcoes`
-2. Quando pronto: merge para `master` → GitHub Pages atualiza automaticamente em ~2 min
+- Desenvolver e commitar direto na `master` → GitHub Pages atualiza automaticamente em ~2 min
 
 ---
 
@@ -52,18 +50,36 @@ Patologista que:
 
 ## Funcionalidades implementadas
 
-### Aba "Hoje"
+### Página inicial — Sessão de Hoje
 - **Iniciar Trabalho** → começa a contar o tempo
 - **Registrar Caso** → input de lâminas + botão (ou Enter); registra duração exata do caso descontando pausas
 - **Pausar / Retomar** → pausa o timer, conta tempo de pausa separado
-- **Encerrar Dia** → salva resumo no Firestore e na coleção de histórico
+- **Encerrar Sessão** → salva no Firestore (histórico do dia)
+- **Iniciar Nova Sessão** → reseta para nova sessão no mesmo dia (acumula no histórico)
 - Estatísticas em tempo real: tempo trabalhado, em pausa, casos, lâminas, média/caso, média/lâmina
-- Lista de casos do dia (ordem reversa)
+- Lista de casos da sessão (ordem reversa) com botão de apagar caso individual
 
-### Aba "Histórico"
+### Menu lateral (sidebar)
+- Botão hamburguer (☰) no canto superior esquerdo
+- Fecha ao clicar no overlay
+- Navegação: Hoje / Histórico
+- Botão Sair (Google Sign-Out)
+
+### Histórico (acessado pelo menu lateral)
 - Totais gerais (dias trabalhados, casos, lâminas, média geral/caso)
-- Lista de todos os dias, mais recente primeiro
-- Cada dia é expansível → mostra estatísticas detalhadas + lista de casos
+- Hierarquia colapsável em 4 níveis:
+  - **Ano** → mostra total de dias, casos, lâminas
+  - **Mês** → mostra dias, casos, lâminas, média/caso
+  - **Dia** → mostra casos, lâminas, tempo, número de sessões
+  - **Sessão** → mostra horário início–fim, casos da sessão
+- Botão apagar em cada nível: dia inteiro, sessão individual, caso individual
+- Apagar um caso subtrai seu tempo das estatísticas automaticamente
+
+### Múltiplas sessões por dia
+- O mesmo dia pode ter várias sessões (ex.: manhã e tarde)
+- Cada sessão é armazenada separadamente em `sessions[]`
+- As stats do dia somam todas as sessões
+- Histórico de dias antigos (formato sem `sessions[]`) é migrado automaticamente
 
 ### Persistência e sync
 - Dados salvos no Firestore em tempo real
@@ -77,10 +93,17 @@ Patologista que:
 users/
   {uid}/
     data/
-      current  →  estado atual do dia (state, cases[], pauses[], timers...)
+      current  →  estado atual da sessão em andamento
     history/
-      {YYYY-MM-DD}  →  dados finalizados de cada dia
+      {YYYY-MM-DD}  →  { date, sessions: [{ workStartTime, dayEndTime, cases[], pauses[] }] }
 ```
+
+### Nota sobre formato do histórico
+- Formato novo: `{ date, sessions: [...] }`
+- Formato antigo (legado): `{ date, workStartTime, dayEndTime, cases[], pauses[] }`
+- `calcDayStats()` e `renderHistoryDay()` suportam ambos os formatos via fallback
+
+---
 
 ## Estrutura de arquivos
 ```
@@ -93,7 +116,7 @@ CONTEXTO.md     → este arquivo
 
 ---
 
-## Estado do dado (data object)
+## Estado do dado atual (objeto `data` — sessão em curso)
 ```js
 {
   state: 'idle' | 'working' | 'paused' | 'ended',
@@ -109,12 +132,33 @@ CONTEXTO.md     → este arquivo
 
 ---
 
-## O que ainda pode ser feito (ideias do usuário)
-- O usuário mencionou querer "novas funções" mas não especificou quais ainda
-- Perguntar ao usuário o que quer adicionar na próxima sessão
+## Estado JS relevante (variáveis globais)
+```js
+let data             // sessão em curso
+let currentUser      // usuário Firebase Auth
+let authReady        // bool — auth inicializado
+let timerInterval    // setInterval do timer
+let currentView      // 'today' | 'history'
+let menuOpen         // bool — sidebar aberta
+let expandedYears    // Set de anos abertos no histórico
+let expandedMonths   // Set de "YYYY-MM" abertos
+let expandedDays     // Set de "YYYY-MM-DD" abertos
+let expandedSessions // Set de "YYYY-MM-DD-N" abertos
+let historyCache     // objeto { [date]: dayDoc } ou null
+```
+
+---
+
+## Cálculo de tempo trabalhado no histórico
+- `workMs` = soma das `duration` de todos os casos da sessão/dia
+- Isso garante que apagar um caso também subtrai seu tempo das estatísticas
+- `duration` de cada caso = tempo entre fim do caso anterior e fim deste caso, descontando pausas sobrepostas
+
+---
 
 ## Observações importantes
 - O app é pessoal (um único usuário: guimota111)
 - Regras do Firestore já configuradas para só o dono acessar os próprios dados
 - `guimota111.github.io` já está nos domínios autorizados do Firebase Auth
-- O gh CLI está instalado em `C:\Program Files\GitHub CLI\gh.exe` mas não está no PATH do bash — chamar via `powershell.exe -Command` ou adicionar ao PATH manualmente
+- O gh CLI está instalado em `C:\Program Files\GitHub CLI\gh.exe` mas não está no PATH do bash — chamar via `powershell.exe -Command` ou via caminho completo
+- O Live Server do VS Code funciona normalmente para testes locais (Firebase Auth aceita localhost por padrão); apenas o service worker não carrega localmente (path `/Assistente-trabalho/sw.js` não existe no servidor local — inofensivo)
