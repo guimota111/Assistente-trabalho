@@ -368,6 +368,20 @@
             flex-shrink: 0;
         }
         .btn-delete-day:hover { color: var(--danger); background: #fee2e2; }
+
+        /* ── Session sub-cards ── */
+        .session-card { background: var(--bg); border: 1px solid var(--border); border-radius: 10px; margin-bottom: 8px; overflow: hidden; }
+        .session-header { display: flex; align-items: center; justify-content: space-between; padding: 10px 14px; cursor: pointer; user-select: none; gap: 8px; }
+        .session-header:hover { background: #eef2f7; }
+        .session-header-left { display: flex; flex-direction: column; gap: 2px; }
+        .session-title { font-weight: 700; font-size: 0.85rem; color: var(--text); }
+        .session-meta { font-size: 0.78rem; color: var(--text-muted); }
+        .session-header-right { display: flex; align-items: center; gap: 4px; flex-shrink: 0; }
+        .session-cases-count { font-size: 0.85rem; font-weight: 700; color: var(--primary); }
+        .session-chevron { font-size: 0.75rem; color: var(--text-muted); transition: transform 0.2s; }
+        .session-chevron.open { transform: rotate(180deg); }
+        .session-body { border-top: 1px solid var(--border); padding: 10px 14px; }
+        .session-cases-list { display: flex; flex-direction: column; gap: 5px; }
     </style>
 </head>
 <body>
@@ -400,7 +414,8 @@ let currentUser  = null;
 let authReady    = false;
 let timerInterval = null;
 let currentView  = 'today';
-let expandedDays = new Set();
+let expandedDays     = new Set();
+let expandedSessions = new Set();
 let historyCache = null;
 
 /* ──────────── Utilities ──────────── */
@@ -728,6 +743,46 @@ async function deleteHistoryDay(date) {
     }
 }
 
+async function deleteHistorySession(date, sessionIdx) {
+    if (!confirm('Apagar esta sessão?')) return;
+    try {
+        const doc = await historyRef(date).get();
+        if (!doc.exists) return;
+        const d = doc.data();
+        const sessions = (d.sessions || []).filter((_, i) => i !== sessionIdx);
+        if (sessions.length === 0) {
+            await historyRef(date).delete();
+            if (historyCache) delete historyCache[date];
+            expandedDays.delete(date);
+        } else {
+            await historyRef(date).set({ date, sessions });
+            if (historyCache) historyCache[date] = { date, sessions };
+        }
+        expandedSessions.delete(`${date}-${sessionIdx}`);
+        renderRoot();
+    } catch (e) {
+        console.warn('deleteHistorySession:', e);
+        alert('Erro ao apagar a sessão.');
+    }
+}
+
+async function deleteHistoryCase(date, sessionIdx, caseIdx) {
+    if (!confirm('Apagar este caso?')) return;
+    try {
+        const doc = await historyRef(date).get();
+        if (!doc.exists) return;
+        const d = doc.data();
+        const sessions = d.sessions ? d.sessions.map(s => ({ ...s, cases: [...(s.cases || [])] })) : [];
+        sessions[sessionIdx].cases.splice(caseIdx, 1);
+        await historyRef(date).set({ date, sessions });
+        if (historyCache) historyCache[date] = { date, sessions };
+        renderRoot();
+    } catch (e) {
+        console.warn('deleteHistoryCase:', e);
+        alert('Erro ao apagar o caso.');
+    }
+}
+
 /* ──────────── Timer ──────────── */
 function startTimer() {
     stopTimer();
@@ -967,23 +1022,64 @@ function renderHistoryDay(day) {
         </div>
     </div>`;
     if (!isOpen) return `<div class="history-day">${header}</div>`;
+
     const statsRow = `
     <div class="hday-stats-row">
-        <div class="hday-stat"><div class="hday-stat-val">${formatDuration(s.workMs)}</div><div class="hday-stat-lbl">Trabalhado</div></div>
+        <div class="hday-stat"><div class="hday-stat-val">${formatDuration(s.workMs)}</div><div class="hday-stat-lbl">Total trabalhado</div></div>
         <div class="hday-stat"><div class="hday-stat-val">${s.pauseMs > 0 ? formatShort(s.pauseMs) : '0s'}</div><div class="hday-stat-lbl">Em pausa</div></div>
         <div class="hday-stat"><div class="hday-stat-val">${s.avgPerCase > 0 ? formatShort(s.avgPerCase) : '--'}</div><div class="hday-stat-lbl">Média/caso</div></div>
         <div class="hday-stat"><div class="hday-stat-val">${s.avgPerSlide > 0 ? formatShort(s.avgPerSlide) : '--'}</div><div class="hday-stat-lbl">Média/lâmina</div></div>
         <div class="hday-stat"><div class="hday-stat-val">${s.totalCases}</div><div class="hday-stat-lbl">Casos</div></div>
         <div class="hday-stat"><div class="hday-stat-val">${s.totalSlides}</div><div class="hday-stat-lbl">Lâminas</div></div>
     </div>`;
-    const casesRows = [...s.allCases].reverse().map((c, i, arr) => `
-        <div class="hday-case-row">
-            <span class="case-num">Caso #${arr.length - i}</span>
-            <span class="case-slides">${c.slides} lâmina${c.slides !== 1 ? 's' : ''}</span>
-            <span class="case-time">${new Date(c.endTime).toLocaleTimeString('pt-BR', {hour: '2-digit', minute: '2-digit'})}</span>
-            <span class="case-dur">${formatShort(c.duration)}</span>
-        </div>`).join('');
-    return `<div class="history-day">${header}<div class="history-day-body">${statsRow}<div class="hday-cases-list">${casesRows}</div></div></div>`;
+
+    const sessions = day.sessions || [{
+        workStartTime: day.workStartTime, dayEndTime: day.dayEndTime,
+        cases: day.cases || [], pauses: day.pauses || [],
+    }];
+
+    const sessionCards = sessions.map((session, idx) => {
+        const key = `${day.date}-${idx}`;
+        const isSessOpen = expandedSessions.has(key);
+        const sCases  = session.cases  || [];
+        const sPauses = session.pauses || [];
+        const sPauseMs = sPauses.reduce((a, p) => a + ts(p.end) - ts(p.start), 0);
+        const sWorkMs  = (session.workStartTime && session.dayEndTime)
+            ? Math.max(0, ts(session.dayEndTime) - ts(session.workStartTime) - sPauseMs) : 0;
+        const startHour = session.workStartTime
+            ? new Date(session.workStartTime).toLocaleTimeString('pt-BR', {hour:'2-digit', minute:'2-digit'}) : '--';
+        const endHour = session.dayEndTime
+            ? new Date(session.dayEndTime).toLocaleTimeString('pt-BR', {hour:'2-digit', minute:'2-digit'}) : '--';
+        const caseRows = [...sCases].reverse().map((c, ri, arr) => {
+            const origIdx = sCases.length - 1 - ri;
+            return `
+            <div class="hday-case-row" style="grid-template-columns: auto 1fr auto auto auto;">
+                <span class="case-num">Caso #${arr.length - ri}</span>
+                <span class="case-slides">${c.slides} lâmina${c.slides !== 1 ? 's' : ''}</span>
+                <span class="case-time">${new Date(c.endTime).toLocaleTimeString('pt-BR', {hour: '2-digit', minute: '2-digit'})}</span>
+                <span class="case-dur">${formatShort(c.duration)}</span>
+                <button class="btn-delete" data-delete-hcase data-date="${day.date}" data-session="${idx}" data-caseidx="${origIdx}" title="Apagar caso">✕</button>
+            </div>`;
+        }).join('');
+
+        return `
+        <div class="session-card">
+            <div class="session-header" data-session-key="${key}">
+                <div class="session-header-left">
+                    <div class="session-title">Sessão ${idx + 1} · ${startHour} – ${endHour}</div>
+                    <div class="session-meta">${sCases.length} caso${sCases.length !== 1 ? 's' : ''} · ${formatDuration(sWorkMs)} trabalhado</div>
+                </div>
+                <div class="session-header-right">
+                    <span class="session-cases-count">${sCases.length}</span>
+                    <span class="session-chevron${isSessOpen ? ' open' : ''}">▼</span>
+                    <button class="btn-delete" data-delete-session data-date="${day.date}" data-session="${idx}" title="Apagar sessão">✕</button>
+                </div>
+            </div>
+            ${isSessOpen ? `<div class="session-body"><div class="session-cases-list">${caseRows || '<div style="color:var(--text-muted);font-size:0.82rem;padding:4px 0">Nenhum caso.</div>'}</div></div>` : ''}
+        </div>`;
+    }).join('');
+
+    return `<div class="history-day">${header}<div class="history-day-body">${statsRow}${sessionCards}</div></div>`;
 }
 
 /* ──────────── Events ──────────── */
@@ -1023,6 +1119,27 @@ function attachEvents() {
         btn.addEventListener('click', e => {
             e.stopPropagation();
             deleteHistoryDay(btn.dataset.deleteDay);
+        });
+    });
+    document.querySelectorAll('.session-header').forEach(el => {
+        el.addEventListener('click', e => {
+            if (e.target.closest('.btn-delete')) return;
+            const key = el.dataset.sessionKey;
+            if (expandedSessions.has(key)) expandedSessions.delete(key);
+            else expandedSessions.add(key);
+            renderRoot();
+        });
+    });
+    document.querySelectorAll('.btn-delete[data-delete-session]').forEach(btn => {
+        btn.addEventListener('click', e => {
+            e.stopPropagation();
+            deleteHistorySession(btn.dataset.date, parseInt(btn.dataset.session));
+        });
+    });
+    document.querySelectorAll('.btn-delete[data-delete-hcase]').forEach(btn => {
+        btn.addEventListener('click', e => {
+            e.stopPropagation();
+            deleteHistoryCase(btn.dataset.date, parseInt(btn.dataset.session), parseInt(btn.dataset.caseidx));
         });
     });
     document.querySelectorAll('.btn-delete[data-delete-case]').forEach(btn => {
