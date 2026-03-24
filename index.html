@@ -1,0 +1,740 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Controle de Laudos</title>
+    <style>
+        :root {
+            --primary: #2563eb;
+            --primary-dark: #1d4ed8;
+            --success: #16a34a;
+            --success-dark: #15803d;
+            --danger: #dc2626;
+            --danger-dark: #b91c1c;
+            --pause: #7c3aed;
+            --pause-dark: #6d28d9;
+            --bg: #f1f5f9;
+            --card: #ffffff;
+            --text: #1e293b;
+            --text-muted: #64748b;
+            --border: #e2e8f0;
+            --shadow: 0 1px 3px rgba(0,0,0,0.08), 0 1px 2px rgba(0,0,0,0.05);
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            min-height: 100vh;
+            padding: 24px 16px 48px;
+        }
+
+        .container {
+            max-width: 760px;
+            margin: 0 auto;
+        }
+
+        header {
+            text-align: center;
+            margin-bottom: 28px;
+        }
+
+        header h1 {
+            font-size: 1.6rem;
+            font-weight: 700;
+            letter-spacing: -0.02em;
+        }
+
+        header .date {
+            color: var(--text-muted);
+            margin-top: 4px;
+            font-size: 0.9rem;
+            text-transform: capitalize;
+        }
+
+        .card {
+            background: var(--card);
+            border-radius: 14px;
+            padding: 28px 24px;
+            box-shadow: var(--shadow);
+            border: 1px solid var(--border);
+            margin-bottom: 14px;
+        }
+
+        /* Status card */
+        .status-card { text-align: center; }
+
+        .state-badge {
+            display: inline-block;
+            padding: 4px 14px;
+            border-radius: 99px;
+            font-size: 0.75rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            margin-bottom: 18px;
+        }
+
+        .state-idle .state-badge    { background: #f1f5f9; color: var(--text-muted); }
+        .state-working .state-badge { background: #dcfce7; color: #15803d; }
+        .state-paused .state-badge  { background: #ede9fe; color: #6d28d9; }
+        .state-ended .state-badge   { background: #f1f5f9; color: var(--text-muted); }
+
+        .main-timer {
+            font-size: 3.75rem;
+            font-weight: 700;
+            letter-spacing: -0.03em;
+            line-height: 1;
+            margin-bottom: 6px;
+            font-variant-numeric: tabular-nums;
+        }
+
+        .timer-label {
+            font-size: 0.82rem;
+            color: var(--text-muted);
+            margin-bottom: 20px;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .pause-info {
+            font-size: 1.1rem;
+            color: var(--pause);
+            font-weight: 600;
+            margin-bottom: 20px;
+            font-variant-numeric: tabular-nums;
+        }
+
+        .current-case-badge {
+            display: inline-block;
+            background: #eff6ff;
+            color: var(--primary);
+            border-radius: 8px;
+            padding: 6px 16px;
+            font-size: 0.85rem;
+            font-weight: 600;
+            margin-bottom: 22px;
+            font-variant-numeric: tabular-nums;
+        }
+
+        /* Register area */
+        .register-area {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            margin-bottom: 22px;
+            flex-wrap: wrap;
+        }
+
+        .register-area label {
+            font-size: 0.9rem;
+            color: var(--text-muted);
+            font-weight: 500;
+        }
+
+        .slides-input {
+            width: 72px;
+            padding: 9px 10px;
+            border: 1.5px solid var(--border);
+            border-radius: 8px;
+            font-size: 1rem;
+            text-align: center;
+            outline: none;
+            transition: border-color 0.15s;
+            font-weight: 600;
+        }
+
+        .slides-input:focus { border-color: var(--primary); }
+
+        /* Buttons */
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 7px;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 9px;
+            font-size: 0.93rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background 0.15s, transform 0.1s;
+            line-height: 1;
+        }
+
+        .btn:active { transform: scale(0.97); }
+        .btn:disabled { opacity: 0.45; cursor: not-allowed; transform: none; }
+
+        .btn-primary { background: var(--primary); color: white; }
+        .btn-primary:hover:not(:disabled) { background: var(--primary-dark); }
+
+        .btn-success { background: var(--success); color: white; }
+        .btn-success:hover:not(:disabled) { background: var(--success-dark); }
+
+        .btn-pause { background: var(--pause); color: white; }
+        .btn-pause:hover:not(:disabled) { background: var(--pause-dark); }
+
+        .btn-danger { background: var(--danger); color: white; }
+        .btn-danger:hover:not(:disabled) { background: var(--danger-dark); }
+
+        .btn-outline {
+            background: transparent;
+            border: 1.5px solid var(--border);
+            color: var(--text);
+        }
+        .btn-outline:hover:not(:disabled) { background: var(--bg); }
+
+        .btn-lg {
+            padding: 15px 36px;
+            font-size: 1.05rem;
+            border-radius: 11px;
+        }
+
+        .actions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            justify-content: center;
+        }
+
+        /* Stats grid */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 10px;
+            margin-bottom: 14px;
+        }
+
+        @media (max-width: 500px) {
+            .stats-grid { grid-template-columns: repeat(2, 1fr); }
+        }
+
+        .stat-item {
+            background: var(--bg);
+            border-radius: 10px;
+            padding: 14px 12px;
+            text-align: center;
+        }
+
+        .stat-value {
+            font-size: 1.35rem;
+            font-weight: 700;
+            line-height: 1;
+            margin-bottom: 5px;
+            font-variant-numeric: tabular-nums;
+        }
+
+        .stat-label {
+            font-size: 0.7rem;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+        }
+
+        /* Cases list */
+        .cases-card h2 {
+            font-size: 0.95rem;
+            font-weight: 600;
+            margin-bottom: 14px;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .case-list { display: flex; flex-direction: column; gap: 8px; }
+
+        .case-item {
+            display: grid;
+            grid-template-columns: auto 1fr auto auto;
+            align-items: center;
+            gap: 12px;
+            padding: 11px 14px;
+            background: var(--bg);
+            border-radius: 9px;
+            font-size: 0.88rem;
+        }
+
+        .case-num {
+            font-weight: 700;
+            color: var(--primary);
+            min-width: 52px;
+        }
+
+        .case-slides {
+            color: var(--text-muted);
+            font-weight: 500;
+        }
+
+        .case-time {
+            color: var(--text-muted);
+            font-size: 0.8rem;
+        }
+
+        .case-dur {
+            font-variant-numeric: tabular-nums;
+            font-weight: 600;
+            text-align: right;
+            min-width: 50px;
+        }
+
+        .empty-cases {
+            text-align: center;
+            color: var(--text-muted);
+            padding: 20px;
+            font-size: 0.88rem;
+        }
+
+        /* End of day summary */
+        .summary-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 12px;
+            margin: 20px 0;
+        }
+
+        .summary-item {
+            background: var(--bg);
+            border-radius: 10px;
+            padding: 16px 14px;
+        }
+
+        .summary-item .s-value {
+            font-size: 1.8rem;
+            font-weight: 700;
+            line-height: 1;
+            font-variant-numeric: tabular-nums;
+        }
+
+        .summary-item .s-label {
+            font-size: 0.78rem;
+            color: var(--text-muted);
+            margin-top: 4px;
+        }
+    </style>
+</head>
+<body>
+<div class="container">
+    <header>
+        <h1>Controle de Laudos</h1>
+        <div class="date" id="headerDate"></div>
+    </header>
+    <div id="app"></div>
+</div>
+
+<script>
+/* ──────────── Utilities ──────────── */
+function now()        { return Date.now(); }
+function ts(iso)      { return new Date(iso).getTime(); }
+function pad(n)       { return String(n).padStart(2, '0'); }
+function todayStr()   { return new Date().toISOString().split('T')[0]; }
+
+function formatDuration(ms) {
+    if (!ms || ms < 0) ms = 0;
+    const s = Math.floor(ms / 1000);
+    const h = Math.floor(s / 3600);
+    const m = Math.floor((s % 3600) / 60);
+    const sec = s % 60;
+    if (h > 0) return `${h}:${pad(m)}:${pad(sec)}`;
+    return `${pad(m)}:${pad(sec)}`;
+}
+
+function formatShort(ms) {
+    if (!ms || ms <= 0) return '--';
+    const s = Math.floor(ms / 1000);
+    const h = Math.floor(s / 3600);
+    const m = Math.floor((s % 3600) / 60);
+    const sec = s % 60;
+    if (h > 0) return `${h}h ${pad(m)}m`;
+    if (m > 0) return `${m}m ${pad(sec)}s`;
+    return `${sec}s`;
+}
+
+/* ──────────── State ──────────── */
+// state: 'idle' | 'working' | 'paused' | 'ended'
+const STORAGE_KEY = 'laudos_v1';
+
+function defaultData() {
+    return {
+        state: 'idle',
+        date: todayStr(),
+        workStartTime: null,
+        currentCaseStart: null,
+        cases: [],        // [{id, startTime, endTime, slides, duration}]
+        pauses: [],       // [{start, end}]
+        currentPauseStart: null,
+        dayEndTime: null,
+    };
+}
+
+function loadData() {
+    try {
+        const raw = localStorage.getItem(STORAGE_KEY);
+        if (raw) {
+            const d = JSON.parse(raw);
+            // New day after a finished day → reset
+            if (d.date !== todayStr() && d.state === 'ended') return defaultData();
+            return d;
+        }
+    } catch (_) {}
+    return defaultData();
+}
+
+function saveData() {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+}
+
+let data = loadData();
+let timerInterval = null;
+
+/* ──────────── Time calculations ──────────── */
+function getTotalWorkingTime() {
+    if (!data.workStartTime) return 0;
+    const endRef = data.dayEndTime ? ts(data.dayEndTime) : now();
+    let elapsed = endRef - ts(data.workStartTime);
+    let pauseMs = 0;
+    for (const p of data.pauses) pauseMs += ts(p.end) - ts(p.start);
+    if (data.currentPauseStart) pauseMs += endRef - ts(data.currentPauseStart);
+    return Math.max(0, elapsed - pauseMs);
+}
+
+function getTotalPauseTime() {
+    let ms = 0;
+    for (const p of data.pauses) ms += ts(p.end) - ts(p.start);
+    if (data.currentPauseStart) ms += now() - ts(data.currentPauseStart);
+    return ms;
+}
+
+function getCurrentPauseDuration() {
+    if (!data.currentPauseStart) return 0;
+    return now() - ts(data.currentPauseStart);
+}
+
+function getCurrentCaseDuration() {
+    if (!data.currentCaseStart) return 0;
+    const caseStart = ts(data.currentCaseStart);
+    const endRef = now();
+    let duration = endRef - caseStart;
+    for (const p of data.pauses) {
+        const os = Math.max(ts(p.start), caseStart);
+        const oe = Math.min(ts(p.end), endRef);
+        if (oe > os) duration -= (oe - os);
+    }
+    if (data.currentPauseStart) {
+        const os = Math.max(ts(data.currentPauseStart), caseStart);
+        if (endRef > os) duration -= (endRef - os);
+    }
+    return Math.max(0, duration);
+}
+
+function getStats() {
+    const totalCases  = data.cases.length;
+    const totalSlides = data.cases.reduce((a, c) => a + c.slides, 0);
+    const totalCasesMs = data.cases.reduce((a, c) => a + c.duration, 0);
+    const avgPerCase  = totalCases  > 0 ? totalCasesMs / totalCases  : 0;
+    const avgPerSlide = totalSlides > 0 ? totalCasesMs / totalSlides : 0;
+    return {
+        totalCases,
+        totalSlides,
+        totalWorkMs:  getTotalWorkingTime(),
+        totalPauseMs: getTotalPauseTime(),
+        avgPerCase,
+        avgPerSlide,
+    };
+}
+
+/* ──────────── Actions ──────────── */
+function startWork() {
+    const t = new Date().toISOString();
+    data = defaultData();
+    data.date = todayStr();
+    data.state = 'working';
+    data.workStartTime = t;
+    data.currentCaseStart = t;
+    saveData();
+    render();
+    startTimer();
+}
+
+function registerCase(slides) {
+    const endTime  = new Date().toISOString();
+    const caseStart = ts(data.currentCaseStart);
+    const caseEnd   = ts(endTime);
+    let duration = caseEnd - caseStart;
+    for (const p of data.pauses) {
+        const os = Math.max(ts(p.start), caseStart);
+        const oe = Math.min(ts(p.end), caseEnd);
+        if (oe > os) duration -= (oe - os);
+    }
+    data.cases.push({
+        id: data.cases.length + 1,
+        startTime: data.currentCaseStart,
+        endTime,
+        slides,
+        duration: Math.max(0, duration),
+    });
+    data.currentCaseStart = endTime;
+    saveData();
+    render();
+}
+
+function pauseWork() {
+    data.state = 'paused';
+    data.currentPauseStart = new Date().toISOString();
+    saveData();
+    render();
+}
+
+function resumeWork() {
+    data.pauses.push({ start: data.currentPauseStart, end: new Date().toISOString() });
+    data.currentPauseStart = null;
+    data.state = 'working';
+    saveData();
+    render();
+}
+
+function endDay() {
+    if (data.state === 'paused') {
+        data.pauses.push({ start: data.currentPauseStart, end: new Date().toISOString() });
+        data.currentPauseStart = null;
+    }
+    data.state = 'ended';
+    data.dayEndTime = new Date().toISOString();
+    saveData();
+    stopTimer();
+    render();
+}
+
+function newDay() {
+    stopTimer();
+    data = defaultData();
+    saveData();
+    render();
+}
+
+/* ──────────── Timer ──────────── */
+function startTimer() {
+    stopTimer();
+    timerInterval = setInterval(tickTimer, 1000);
+}
+
+function stopTimer() {
+    if (timerInterval) { clearInterval(timerInterval); timerInterval = null; }
+}
+
+function tickTimer() {
+    const s = getStats();
+    setText('mainTimer',       formatDuration(getTotalWorkingTime()));
+    setText('pauseInfo',       'Em pausa: ' + formatDuration(getCurrentPauseDuration()));
+    setText('currentCaseTimer','Caso atual: ' + formatDuration(getCurrentCaseDuration()));
+    setText('statWork',        formatDuration(s.totalWorkMs));
+    setText('statPause',       formatDuration(s.totalPauseMs));
+    setText('statAvgCase',     s.totalCases  > 0 ? formatShort(s.avgPerCase)  : '--');
+    setText('statAvgSlide',    s.totalSlides > 0 ? formatShort(s.avgPerSlide) : '--');
+}
+
+function setText(id, val) {
+    const el = document.getElementById(id);
+    if (el) el.textContent = val;
+}
+
+/* ──────────── Render ──────────── */
+function render() {
+    document.getElementById('headerDate').textContent =
+        new Date().toLocaleDateString('pt-BR', {
+            weekday: 'long', day: 'numeric', month: 'long', year: 'numeric'
+        });
+
+    const s = getStats();
+    const app = document.getElementById('app');
+
+    if (data.state === 'idle') {
+        app.innerHTML = renderIdle();
+    } else if (data.state === 'working') {
+        app.innerHTML = renderWorking(s);
+    } else if (data.state === 'paused') {
+        app.innerHTML = renderPaused(s);
+    } else {
+        app.innerHTML = renderEnded(s);
+    }
+
+    attachEvents();
+}
+
+function renderIdle() {
+    return `
+    <div class="card status-card state-idle">
+        <div class="state-badge">Aguardando</div>
+        <div class="main-timer">00:00</div>
+        <div class="timer-label">Tempo trabalhado</div>
+        <div class="actions">
+            <button class="btn btn-primary btn-lg" id="btnStart">Iniciar Trabalho</button>
+        </div>
+    </div>`;
+}
+
+function renderWorking(s) {
+    return `
+    <div class="card status-card state-working">
+        <div class="state-badge">Trabalhando</div>
+        <div class="main-timer" id="mainTimer">${formatDuration(getTotalWorkingTime())}</div>
+        <div class="timer-label">Tempo trabalhado</div>
+        <div class="current-case-badge" id="currentCaseTimer">Caso atual: ${formatDuration(getCurrentCaseDuration())}</div>
+        <div class="register-area">
+            <label for="slidesInput">Lâminas:</label>
+            <input class="slides-input" type="number" id="slidesInput" min="1" value="1">
+            <button class="btn btn-success" id="btnCase">Registrar Caso</button>
+        </div>
+        <div class="actions">
+            <button class="btn btn-pause" id="btnPause">Pausar</button>
+            <button class="btn btn-danger" id="btnEnd">Encerrar Dia</button>
+        </div>
+    </div>
+    ${renderStatsGrid(s)}
+    ${renderCasesList()}`;
+}
+
+function renderPaused(s) {
+    return `
+    <div class="card status-card state-paused">
+        <div class="state-badge">Em Pausa</div>
+        <div class="main-timer" id="mainTimer">${formatDuration(getTotalWorkingTime())}</div>
+        <div class="timer-label">Tempo trabalhado</div>
+        <div class="pause-info" id="pauseInfo">Em pausa: ${formatDuration(getCurrentPauseDuration())}</div>
+        <div class="actions">
+            <button class="btn btn-primary" id="btnResume">Retomar Trabalho</button>
+            <button class="btn btn-danger" id="btnEnd">Encerrar Dia</button>
+        </div>
+    </div>
+    ${renderStatsGrid(s)}
+    ${renderCasesList()}`;
+}
+
+function renderEnded(s) {
+    const totalPause = data.pauses.reduce((a, p) => a + ts(p.end) - ts(p.start), 0);
+    return `
+    <div class="card status-card state-ended">
+        <div class="state-badge">Dia Encerrado</div>
+        <div class="main-timer">${formatDuration(getTotalWorkingTime())}</div>
+        <div class="timer-label">Total trabalhado hoje</div>
+        <div class="summary-grid">
+            <div class="summary-item">
+                <div class="s-value">${s.totalCases}</div>
+                <div class="s-label">Casos laudados</div>
+            </div>
+            <div class="summary-item">
+                <div class="s-value">${s.totalSlides}</div>
+                <div class="s-label">Lâminas analisadas</div>
+            </div>
+            <div class="summary-item">
+                <div class="s-value">${s.totalCases > 0 ? formatShort(s.avgPerCase) : '--'}</div>
+                <div class="s-label">Média por caso</div>
+            </div>
+            <div class="summary-item">
+                <div class="s-value">${s.totalSlides > 0 ? formatShort(s.avgPerSlide) : '--'}</div>
+                <div class="s-label">Média por lâmina</div>
+            </div>
+            <div class="summary-item">
+                <div class="s-value">${formatShort(totalPause) === '--' ? '0s' : formatShort(totalPause)}</div>
+                <div class="s-label">Tempo em pausa</div>
+            </div>
+            <div class="summary-item">
+                <div class="s-value">${data.pauses.length}</div>
+                <div class="s-label">Pausas realizadas</div>
+            </div>
+        </div>
+        <div class="actions">
+            <button class="btn btn-outline" id="btnNewDay">Iniciar Novo Dia</button>
+        </div>
+    </div>
+    ${renderCasesList()}`;
+}
+
+function renderStatsGrid(s) {
+    return `
+    <div class="stats-grid">
+        <div class="stat-item">
+            <div class="stat-value" id="statWork">${formatDuration(s.totalWorkMs)}</div>
+            <div class="stat-label">Trabalhado</div>
+        </div>
+        <div class="stat-item">
+            <div class="stat-value" id="statPause">${formatDuration(s.totalPauseMs)}</div>
+            <div class="stat-label">Em Pausa</div>
+        </div>
+        <div class="stat-item">
+            <div class="stat-value">${s.totalCases}</div>
+            <div class="stat-label">Casos</div>
+        </div>
+        <div class="stat-item">
+            <div class="stat-value">${s.totalSlides}</div>
+            <div class="stat-label">Lâminas</div>
+        </div>
+        <div class="stat-item">
+            <div class="stat-value" id="statAvgCase">${s.totalCases > 0 ? formatShort(s.avgPerCase) : '--'}</div>
+            <div class="stat-label">Média/Caso</div>
+        </div>
+        <div class="stat-item">
+            <div class="stat-value" id="statAvgSlide">${s.totalSlides > 0 ? formatShort(s.avgPerSlide) : '--'}</div>
+            <div class="stat-label">Média/Lâmina</div>
+        </div>
+    </div>`;
+}
+
+function renderCasesList() {
+    const title = `<div class="card cases-card">
+        <h2>Casos de Hoje${data.cases.length > 0 ? ' (' + data.cases.length + ')' : ''}</h2>`;
+
+    if (data.cases.length === 0) {
+        return title + `<div class="empty-cases">Nenhum caso registrado ainda.</div></div>`;
+    }
+
+    const rows = [...data.cases].reverse().map(c => `
+        <div class="case-item">
+            <span class="case-num">Caso #${c.id}</span>
+            <span class="case-slides">${c.slides} lâmina${c.slides !== 1 ? 's' : ''}</span>
+            <span class="case-time">${new Date(c.endTime).toLocaleTimeString('pt-BR', {hour: '2-digit', minute: '2-digit'})}</span>
+            <span class="case-dur">${formatShort(c.duration)}</span>
+        </div>`).join('');
+
+    return title + `<div class="case-list">${rows}</div></div>`;
+}
+
+/* ──────────── Events ──────────── */
+function attachEvents() {
+    document.getElementById('btnStart')?.addEventListener('click', startWork);
+
+    document.getElementById('btnCase')?.addEventListener('click', () => {
+        const input = document.getElementById('slidesInput');
+        const slides = Math.max(1, parseInt(input.value) || 1);
+        registerCase(slides);
+        // reset input and refocus
+        setTimeout(() => {
+            const inp = document.getElementById('slidesInput');
+            if (inp) { inp.value = 1; inp.select(); }
+        }, 50);
+    });
+
+    document.getElementById('slidesInput')?.addEventListener('keydown', e => {
+        if (e.key === 'Enter') document.getElementById('btnCase')?.click();
+    });
+
+    document.getElementById('btnPause')?.addEventListener('click', pauseWork);
+    document.getElementById('btnResume')?.addEventListener('click', resumeWork);
+
+    document.getElementById('btnEnd')?.addEventListener('click', () => {
+        if (confirm('Encerrar o trabalho do dia?')) endDay();
+    });
+
+    document.getElementById('btnNewDay')?.addEventListener('click', () => {
+        if (confirm('Iniciar novo dia? Os dados de hoje serão mantidos até você confirmar.')) newDay();
+    });
+}
+
+/* ──────────── Init ──────────── */
+render();
+if (data.state === 'working' || data.state === 'paused') startTimer();
+</script>
+</body>
+</html>
