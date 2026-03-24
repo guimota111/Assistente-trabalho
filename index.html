@@ -32,29 +32,41 @@
             padding: 24px 16px 48px;
         }
 
-        .container {
-            max-width: 760px;
-            margin: 0 auto;
-        }
+        .container { max-width: 760px; margin: 0 auto; }
 
-        header {
-            text-align: center;
-            margin-bottom: 28px;
-        }
+        /* Header */
+        header { text-align: center; margin-bottom: 20px; }
+        header h1 { font-size: 1.6rem; font-weight: 700; letter-spacing: -0.02em; }
+        header .date { color: var(--text-muted); margin-top: 4px; font-size: 0.9rem; text-transform: capitalize; }
 
-        header h1 {
-            font-size: 1.6rem;
-            font-weight: 700;
-            letter-spacing: -0.02em;
+        /* Tabs */
+        .tabs {
+            display: flex;
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 4px;
+            margin-bottom: 20px;
+            box-shadow: var(--shadow);
         }
-
-        header .date {
-            color: var(--text-muted);
-            margin-top: 4px;
+        .tab-btn {
+            flex: 1;
+            padding: 9px 16px;
+            border: none;
+            border-radius: 9px;
             font-size: 0.9rem;
-            text-transform: capitalize;
+            font-weight: 600;
+            cursor: pointer;
+            background: transparent;
+            color: var(--text-muted);
+            transition: all 0.15s;
+        }
+        .tab-btn.active {
+            background: var(--primary);
+            color: white;
         }
 
+        /* Card */
         .card {
             background: var(--card);
             border-radius: 14px;
@@ -77,7 +89,6 @@
             letter-spacing: 0.08em;
             margin-bottom: 18px;
         }
-
         .state-idle .state-badge    { background: #f1f5f9; color: var(--text-muted); }
         .state-working .state-badge { background: #dcfce7; color: #15803d; }
         .state-paused .state-badge  { background: #ede9fe; color: #6d28d9; }
@@ -91,7 +102,6 @@
             margin-bottom: 6px;
             font-variant-numeric: tabular-nums;
         }
-
         .timer-label {
             font-size: 0.82rem;
             color: var(--text-muted);
@@ -99,7 +109,6 @@
             text-transform: uppercase;
             letter-spacing: 0.05em;
         }
-
         .pause-info {
             font-size: 1.1rem;
             color: var(--pause);
@@ -107,7 +116,6 @@
             margin-bottom: 20px;
             font-variant-numeric: tabular-nums;
         }
-
         .current-case-badge {
             display: inline-block;
             background: #eff6ff;
@@ -129,13 +137,7 @@
             margin-bottom: 22px;
             flex-wrap: wrap;
         }
-
-        .register-area label {
-            font-size: 0.9rem;
-            color: var(--text-muted);
-            font-weight: 500;
-        }
-
+        .register-area label { font-size: 0.9rem; color: var(--text-muted); font-weight: 500; }
         .slides-input {
             width: 72px;
             padding: 9px 10px;
@@ -147,7 +149,6 @@
             transition: border-color 0.15s;
             font-weight: 600;
         }
-
         .slides-input:focus { border-color: var(--primary); }
 
         /* Buttons */
@@ -164,88 +165,37 @@
             transition: background 0.15s, transform 0.1s;
             line-height: 1;
         }
-
         .btn:active { transform: scale(0.97); }
         .btn:disabled { opacity: 0.45; cursor: not-allowed; transform: none; }
-
         .btn-primary { background: var(--primary); color: white; }
         .btn-primary:hover:not(:disabled) { background: var(--primary-dark); }
-
         .btn-success { background: var(--success); color: white; }
         .btn-success:hover:not(:disabled) { background: var(--success-dark); }
-
         .btn-pause { background: var(--pause); color: white; }
         .btn-pause:hover:not(:disabled) { background: var(--pause-dark); }
-
         .btn-danger { background: var(--danger); color: white; }
         .btn-danger:hover:not(:disabled) { background: var(--danger-dark); }
-
-        .btn-outline {
-            background: transparent;
-            border: 1.5px solid var(--border);
-            color: var(--text);
-        }
+        .btn-outline { background: transparent; border: 1.5px solid var(--border); color: var(--text); }
         .btn-outline:hover:not(:disabled) { background: var(--bg); }
+        .btn-lg { padding: 15px 36px; font-size: 1.05rem; border-radius: 11px; }
 
-        .btn-lg {
-            padding: 15px 36px;
-            font-size: 1.05rem;
-            border-radius: 11px;
-        }
+        .actions { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; }
 
-        .actions {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 10px;
-            justify-content: center;
-        }
-
-        /* Stats grid */
+        /* Stats grid (today) */
         .stats-grid {
             display: grid;
             grid-template-columns: repeat(3, 1fr);
             gap: 10px;
             margin-bottom: 14px;
         }
-
-        @media (max-width: 500px) {
-            .stats-grid { grid-template-columns: repeat(2, 1fr); }
-        }
-
-        .stat-item {
-            background: var(--bg);
-            border-radius: 10px;
-            padding: 14px 12px;
-            text-align: center;
-        }
-
-        .stat-value {
-            font-size: 1.35rem;
-            font-weight: 700;
-            line-height: 1;
-            margin-bottom: 5px;
-            font-variant-numeric: tabular-nums;
-        }
-
-        .stat-label {
-            font-size: 0.7rem;
-            color: var(--text-muted);
-            text-transform: uppercase;
-            letter-spacing: 0.06em;
-        }
+        @media (max-width: 500px) { .stats-grid { grid-template-columns: repeat(2, 1fr); } }
+        .stat-item { background: var(--bg); border-radius: 10px; padding: 14px 12px; text-align: center; }
+        .stat-value { font-size: 1.35rem; font-weight: 700; line-height: 1; margin-bottom: 5px; font-variant-numeric: tabular-nums; }
+        .stat-label { font-size: 0.7rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.06em; }
 
         /* Cases list */
-        .cases-card h2 {
-            font-size: 0.95rem;
-            font-weight: 600;
-            margin-bottom: 14px;
-            color: var(--text-muted);
-            text-transform: uppercase;
-            letter-spacing: 0.05em;
-        }
-
+        .cases-card h2 { font-size: 0.95rem; font-weight: 600; margin-bottom: 14px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; }
         .case-list { display: flex; flex-direction: column; gap: 8px; }
-
         .case-item {
             display: grid;
             grid-template-columns: auto 1fr auto auto;
@@ -256,63 +206,100 @@
             border-radius: 9px;
             font-size: 0.88rem;
         }
-
-        .case-num {
-            font-weight: 700;
-            color: var(--primary);
-            min-width: 52px;
-        }
-
-        .case-slides {
-            color: var(--text-muted);
-            font-weight: 500;
-        }
-
-        .case-time {
-            color: var(--text-muted);
-            font-size: 0.8rem;
-        }
-
-        .case-dur {
-            font-variant-numeric: tabular-nums;
-            font-weight: 600;
-            text-align: right;
-            min-width: 50px;
-        }
-
-        .empty-cases {
-            text-align: center;
-            color: var(--text-muted);
-            padding: 20px;
-            font-size: 0.88rem;
-        }
+        .case-num { font-weight: 700; color: var(--primary); min-width: 52px; }
+        .case-slides { color: var(--text-muted); font-weight: 500; }
+        .case-time { color: var(--text-muted); font-size: 0.8rem; }
+        .case-dur { font-variant-numeric: tabular-nums; font-weight: 600; text-align: right; min-width: 50px; }
+        .empty-cases { text-align: center; color: var(--text-muted); padding: 20px; font-size: 0.88rem; }
 
         /* End of day summary */
-        .summary-grid {
+        .summary-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; margin: 20px 0; }
+        .summary-item { background: var(--bg); border-radius: 10px; padding: 16px 14px; }
+        .summary-item .s-value { font-size: 1.8rem; font-weight: 700; line-height: 1; font-variant-numeric: tabular-nums; }
+        .summary-item .s-label { font-size: 0.78rem; color: var(--text-muted); margin-top: 4px; }
+
+        /* ── History page ── */
+        .history-totals {
             display: grid;
-            grid-template-columns: repeat(2, 1fr);
-            gap: 12px;
-            margin: 20px 0;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 10px;
+            margin-bottom: 14px;
         }
+        @media (max-width: 560px) { .history-totals { grid-template-columns: repeat(2, 1fr); } }
 
-        .summary-item {
-            background: var(--bg);
-            border-radius: 10px;
-            padding: 16px 14px;
-        }
+        .total-item { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 16px 12px; text-align: center; box-shadow: var(--shadow); }
+        .total-value { font-size: 1.5rem; font-weight: 700; line-height: 1; margin-bottom: 4px; font-variant-numeric: tabular-nums; }
+        .total-label { font-size: 0.7rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.06em; }
 
-        .summary-item .s-value {
-            font-size: 1.8rem;
-            font-weight: 700;
-            line-height: 1;
-            font-variant-numeric: tabular-nums;
-        }
-
-        .summary-item .s-label {
-            font-size: 0.78rem;
+        .history-section-title {
+            font-size: 0.82rem;
+            font-weight: 600;
             color: var(--text-muted);
-            margin-top: 4px;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            margin-bottom: 10px;
         }
+
+        .history-day {
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            margin-bottom: 10px;
+            box-shadow: var(--shadow);
+            overflow: hidden;
+        }
+        .history-day-header {
+            display: grid;
+            grid-template-columns: 1fr auto;
+            align-items: center;
+            padding: 16px 18px;
+            cursor: pointer;
+            user-select: none;
+            gap: 12px;
+        }
+        .history-day-header:hover { background: #f8fafc; }
+
+        .hday-left { display: flex; flex-direction: column; gap: 4px; }
+        .hday-date { font-weight: 700; font-size: 0.95rem; text-transform: capitalize; }
+        .hday-meta { font-size: 0.82rem; color: var(--text-muted); }
+
+        .hday-right { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; }
+        .hday-cases { font-size: 1.1rem; font-weight: 700; color: var(--primary); }
+        .hday-time { font-size: 0.8rem; color: var(--text-muted); font-variant-numeric: tabular-nums; }
+
+        .hday-chevron { font-size: 0.8rem; color: var(--text-muted); margin-left: 8px; transition: transform 0.2s; }
+        .hday-chevron.open { transform: rotate(180deg); }
+
+        .history-day-body {
+            border-top: 1px solid var(--border);
+            padding: 14px 18px;
+            background: #fafbfc;
+        }
+        .hday-stats-row {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 8px;
+            margin-bottom: 14px;
+        }
+        @media (max-width: 480px) { .hday-stats-row { grid-template-columns: repeat(2, 1fr); } }
+        .hday-stat { background: var(--card); border-radius: 8px; padding: 10px 12px; border: 1px solid var(--border); }
+        .hday-stat-val { font-size: 1rem; font-weight: 700; font-variant-numeric: tabular-nums; }
+        .hday-stat-lbl { font-size: 0.68rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; margin-top: 2px; }
+
+        .hday-cases-list { display: flex; flex-direction: column; gap: 6px; }
+        .hday-case-row {
+            display: grid;
+            grid-template-columns: auto 1fr auto auto;
+            gap: 10px;
+            align-items: center;
+            padding: 9px 12px;
+            background: var(--card);
+            border-radius: 8px;
+            font-size: 0.83rem;
+            border: 1px solid var(--border);
+        }
+
+        .empty-history { text-align: center; color: var(--text-muted); padding: 40px 20px; font-size: 0.9rem; }
     </style>
 </head>
 <body>
@@ -321,15 +308,21 @@
         <h1>Controle de Laudos</h1>
         <div class="date" id="headerDate"></div>
     </header>
+
+    <div class="tabs">
+        <button class="tab-btn active" id="tabToday" onclick="setView('today')">Hoje</button>
+        <button class="tab-btn" id="tabHistory" onclick="setView('history')">Histórico</button>
+    </div>
+
     <div id="app"></div>
 </div>
 
 <script>
 /* ──────────── Utilities ──────────── */
-function now()        { return Date.now(); }
-function ts(iso)      { return new Date(iso).getTime(); }
-function pad(n)       { return String(n).padStart(2, '0'); }
-function todayStr()   { return new Date().toISOString().split('T')[0]; }
+function now()      { return Date.now(); }
+function ts(iso)    { return new Date(iso).getTime(); }
+function pad(n)     { return String(n).padStart(2, '0'); }
+function todayStr() { return new Date().toISOString().split('T')[0]; }
 
 function formatDuration(ms) {
     if (!ms || ms < 0) ms = 0;
@@ -352,18 +345,73 @@ function formatShort(ms) {
     return `${sec}s`;
 }
 
-/* ──────────── State ──────────── */
-// state: 'idle' | 'working' | 'paused' | 'ended'
-const STORAGE_KEY = 'laudos_v1';
+function formatDateLong(dateStr) {
+    const [y, m, d] = dateStr.split('-').map(Number);
+    return new Date(y, m - 1, d).toLocaleDateString('pt-BR', {
+        weekday: 'long', day: 'numeric', month: 'long', year: 'numeric'
+    });
+}
 
+function formatDateShort(dateStr) {
+    const [y, m, d] = dateStr.split('-').map(Number);
+    return new Date(y, m - 1, d).toLocaleDateString('pt-BR', {
+        weekday: 'short', day: 'numeric', month: 'short'
+    });
+}
+
+function setText(id, val) {
+    const el = document.getElementById(id);
+    if (el) el.textContent = val;
+}
+
+/* ──────────── History storage ──────────── */
+const STORAGE_KEY = 'laudos_v1';
+const HISTORY_KEY = 'laudos_history_v1';
+
+function loadHistory() {
+    try {
+        const raw = localStorage.getItem(HISTORY_KEY);
+        if (raw) return JSON.parse(raw);
+    } catch (_) {}
+    return {};
+}
+
+function saveToHistory(dayData) {
+    if (!dayData.workStartTime || dayData.cases.length === 0) return;
+    const history = loadHistory();
+    history[dayData.date] = {
+        date: dayData.date,
+        workStartTime: dayData.workStartTime,
+        dayEndTime: dayData.dayEndTime || new Date().toISOString(),
+        cases: dayData.cases,
+        pauses: dayData.pauses,
+    };
+    localStorage.setItem(HISTORY_KEY, JSON.stringify(history));
+}
+
+function calcDayStats(day) {
+    const totalCases  = day.cases.length;
+    const totalSlides = day.cases.reduce((a, c) => a + c.slides, 0);
+    const totalCasesMs = day.cases.reduce((a, c) => a + c.duration, 0);
+    const avgPerCase  = totalCases  > 0 ? totalCasesMs / totalCases  : 0;
+    const avgPerSlide = totalSlides > 0 ? totalCasesMs / totalSlides : 0;
+    const pauseMs     = day.pauses.reduce((a, p) => a + ts(p.end) - ts(p.start), 0);
+    let workMs = 0;
+    if (day.workStartTime && day.dayEndTime) {
+        workMs = Math.max(0, ts(day.dayEndTime) - ts(day.workStartTime) - pauseMs);
+    }
+    return { totalCases, totalSlides, totalCasesMs, avgPerCase, avgPerSlide, workMs, pauseMs };
+}
+
+/* ──────────── Current day state ──────────── */
 function defaultData() {
     return {
         state: 'idle',
         date: todayStr(),
         workStartTime: null,
         currentCaseStart: null,
-        cases: [],        // [{id, startTime, endTime, slides, duration}]
-        pauses: [],       // [{start, end}]
+        cases: [],
+        pauses: [],
         currentPauseStart: null,
         dayEndTime: null,
     };
@@ -374,8 +422,11 @@ function loadData() {
         const raw = localStorage.getItem(STORAGE_KEY);
         if (raw) {
             const d = JSON.parse(raw);
-            // New day after a finished day → reset
-            if (d.date !== todayStr() && d.state === 'ended') return defaultData();
+            if (d.date !== todayStr()) {
+                // Different day — auto-save to history if there's data, then reset
+                if (d.workStartTime && d.cases.length > 0) saveToHistory(d);
+                return defaultData();
+            }
             return d;
         }
     } catch (_) {}
@@ -388,16 +439,17 @@ function saveData() {
 
 let data = loadData();
 let timerInterval = null;
+let currentView = 'today';
+let expandedDays = new Set();
 
 /* ──────────── Time calculations ──────────── */
 function getTotalWorkingTime() {
     if (!data.workStartTime) return 0;
     const endRef = data.dayEndTime ? ts(data.dayEndTime) : now();
-    let elapsed = endRef - ts(data.workStartTime);
     let pauseMs = 0;
     for (const p of data.pauses) pauseMs += ts(p.end) - ts(p.start);
     if (data.currentPauseStart) pauseMs += endRef - ts(data.currentPauseStart);
-    return Math.max(0, elapsed - pauseMs);
+    return Math.max(0, endRef - ts(data.workStartTime) - pauseMs);
 }
 
 function getTotalPauseTime() {
@@ -415,33 +467,30 @@ function getCurrentPauseDuration() {
 function getCurrentCaseDuration() {
     if (!data.currentCaseStart) return 0;
     const caseStart = ts(data.currentCaseStart);
-    const endRef = now();
-    let duration = endRef - caseStart;
+    let duration = now() - caseStart;
     for (const p of data.pauses) {
         const os = Math.max(ts(p.start), caseStart);
-        const oe = Math.min(ts(p.end), endRef);
+        const oe = Math.min(ts(p.end), now());
         if (oe > os) duration -= (oe - os);
     }
     if (data.currentPauseStart) {
         const os = Math.max(ts(data.currentPauseStart), caseStart);
-        if (endRef > os) duration -= (endRef - os);
+        if (now() > os) duration -= (now() - os);
     }
     return Math.max(0, duration);
 }
 
 function getStats() {
-    const totalCases  = data.cases.length;
-    const totalSlides = data.cases.reduce((a, c) => a + c.slides, 0);
+    const totalCases   = data.cases.length;
+    const totalSlides  = data.cases.reduce((a, c) => a + c.slides, 0);
     const totalCasesMs = data.cases.reduce((a, c) => a + c.duration, 0);
-    const avgPerCase  = totalCases  > 0 ? totalCasesMs / totalCases  : 0;
-    const avgPerSlide = totalSlides > 0 ? totalCasesMs / totalSlides : 0;
     return {
         totalCases,
         totalSlides,
         totalWorkMs:  getTotalWorkingTime(),
         totalPauseMs: getTotalPauseTime(),
-        avgPerCase,
-        avgPerSlide,
+        avgPerCase:   totalCases  > 0 ? totalCasesMs / totalCases  : 0,
+        avgPerSlide:  totalSlides > 0 ? totalCasesMs / totalSlides : 0,
     };
 }
 
@@ -449,7 +498,6 @@ function getStats() {
 function startWork() {
     const t = new Date().toISOString();
     data = defaultData();
-    data.date = todayStr();
     data.state = 'working';
     data.workStartTime = t;
     data.currentCaseStart = t;
@@ -459,7 +507,7 @@ function startWork() {
 }
 
 function registerCase(slides) {
-    const endTime  = new Date().toISOString();
+    const endTime   = new Date().toISOString();
     const caseStart = ts(data.currentCaseStart);
     const caseEnd   = ts(endTime);
     let duration = caseEnd - caseStart;
@@ -503,6 +551,7 @@ function endDay() {
     data.state = 'ended';
     data.dayEndTime = new Date().toISOString();
     saveData();
+    saveToHistory(data);
     stopTimer();
     render();
 }
@@ -526,18 +575,21 @@ function stopTimer() {
 
 function tickTimer() {
     const s = getStats();
-    setText('mainTimer',       formatDuration(getTotalWorkingTime()));
-    setText('pauseInfo',       'Em pausa: ' + formatDuration(getCurrentPauseDuration()));
-    setText('currentCaseTimer','Caso atual: ' + formatDuration(getCurrentCaseDuration()));
-    setText('statWork',        formatDuration(s.totalWorkMs));
-    setText('statPause',       formatDuration(s.totalPauseMs));
-    setText('statAvgCase',     s.totalCases  > 0 ? formatShort(s.avgPerCase)  : '--');
-    setText('statAvgSlide',    s.totalSlides > 0 ? formatShort(s.avgPerSlide) : '--');
+    setText('mainTimer',        formatDuration(getTotalWorkingTime()));
+    setText('pauseInfo',        'Em pausa: ' + formatDuration(getCurrentPauseDuration()));
+    setText('currentCaseTimer', 'Caso atual: ' + formatDuration(getCurrentCaseDuration()));
+    setText('statWork',         formatDuration(s.totalWorkMs));
+    setText('statPause',        formatDuration(s.totalPauseMs));
+    setText('statAvgCase',      s.totalCases  > 0 ? formatShort(s.avgPerCase)  : '--');
+    setText('statAvgSlide',     s.totalSlides > 0 ? formatShort(s.avgPerSlide) : '--');
 }
 
-function setText(id, val) {
-    const el = document.getElementById(id);
-    if (el) el.textContent = val;
+/* ──────────── View ──────────── */
+function setView(view) {
+    currentView = view;
+    document.getElementById('tabToday').classList.toggle('active', view === 'today');
+    document.getElementById('tabHistory').classList.toggle('active', view === 'history');
+    render();
 }
 
 /* ──────────── Render ──────────── */
@@ -547,22 +599,20 @@ function render() {
             weekday: 'long', day: 'numeric', month: 'long', year: 'numeric'
         });
 
-    const s = getStats();
     const app = document.getElementById('app');
-
-    if (data.state === 'idle') {
-        app.innerHTML = renderIdle();
-    } else if (data.state === 'working') {
-        app.innerHTML = renderWorking(s);
-    } else if (data.state === 'paused') {
-        app.innerHTML = renderPaused(s);
+    if (currentView === 'history') {
+        app.innerHTML = renderHistory();
     } else {
-        app.innerHTML = renderEnded(s);
+        const s = getStats();
+        if      (data.state === 'idle')    app.innerHTML = renderIdle();
+        else if (data.state === 'working') app.innerHTML = renderWorking(s);
+        else if (data.state === 'paused')  app.innerHTML = renderPaused(s);
+        else                               app.innerHTML = renderEnded(s);
     }
-
     attachEvents();
 }
 
+/* ── Today views ── */
 function renderIdle() {
     return `
     <div class="card status-card state-idle">
@@ -637,7 +687,7 @@ function renderEnded(s) {
                 <div class="s-label">Média por lâmina</div>
             </div>
             <div class="summary-item">
-                <div class="s-value">${formatShort(totalPause) === '--' ? '0s' : formatShort(totalPause)}</div>
+                <div class="s-value">${totalPause > 0 ? formatShort(totalPause) : '0s'}</div>
                 <div class="s-label">Tempo em pausa</div>
             </div>
             <div class="summary-item">
@@ -685,11 +735,9 @@ function renderStatsGrid(s) {
 function renderCasesList() {
     const title = `<div class="card cases-card">
         <h2>Casos de Hoje${data.cases.length > 0 ? ' (' + data.cases.length + ')' : ''}</h2>`;
-
     if (data.cases.length === 0) {
         return title + `<div class="empty-cases">Nenhum caso registrado ainda.</div></div>`;
     }
-
     const rows = [...data.cases].reverse().map(c => `
         <div class="case-item">
             <span class="case-num">Caso #${c.id}</span>
@@ -697,8 +745,123 @@ function renderCasesList() {
             <span class="case-time">${new Date(c.endTime).toLocaleTimeString('pt-BR', {hour: '2-digit', minute: '2-digit'})}</span>
             <span class="case-dur">${formatShort(c.duration)}</span>
         </div>`).join('');
-
     return title + `<div class="case-list">${rows}</div></div>`;
+}
+
+/* ── History view ── */
+function renderHistory() {
+    const history = loadHistory();
+    const days = Object.values(history).sort((a, b) => b.date.localeCompare(a.date));
+
+    if (days.length === 0) {
+        return `<div class="empty-history">Nenhum dia registrado ainda.<br>Encerre seu primeiro dia de trabalho para ver o histórico.</div>`;
+    }
+
+    // All-time totals
+    let allCases = 0, allSlides = 0, allWorkMs = 0, allCasesMs = 0;
+    let bestDay = null;
+    for (const day of days) {
+        const s = calcDayStats(day);
+        allCases   += s.totalCases;
+        allSlides  += s.totalSlides;
+        allWorkMs  += s.workMs;
+        allCasesMs += s.totalCasesMs;
+        if (!bestDay || s.totalCases > calcDayStats(bestDay).totalCases) bestDay = day;
+    }
+    const globalAvgCase  = allCases  > 0 ? allCasesMs / allCases  : 0;
+    const globalAvgSlide = allSlides > 0 ? allCasesMs / allSlides : 0;
+
+    const totalsHtml = `
+    <div class="history-totals">
+        <div class="total-item">
+            <div class="total-value">${days.length}</div>
+            <div class="total-label">Dias trabalhados</div>
+        </div>
+        <div class="total-item">
+            <div class="total-value">${allCases}</div>
+            <div class="total-label">Total de casos</div>
+        </div>
+        <div class="total-item">
+            <div class="total-value">${allSlides}</div>
+            <div class="total-label">Total de lâminas</div>
+        </div>
+        <div class="total-item">
+            <div class="total-value">${formatShort(globalAvgCase)}</div>
+            <div class="total-label">Média geral/caso</div>
+        </div>
+    </div>`;
+
+    const daysHtml = days.map(day => renderHistoryDay(day)).join('');
+
+    return totalsHtml
+        + `<div class="history-section-title">Dias (${days.length})</div>`
+        + daysHtml;
+}
+
+function renderHistoryDay(day) {
+    const s = calcDayStats(day);
+    const isOpen = expandedDays.has(day.date);
+
+    const header = `
+    <div class="history-day-header" data-date="${day.date}">
+        <div class="hday-left">
+            <div class="hday-date">${formatDateShort(day.date)}</div>
+            <div class="hday-meta">${s.totalSlides} lâminas · ${formatDuration(s.workMs)} trabalhado</div>
+        </div>
+        <div style="display:flex;align-items:center;gap:4px">
+            <div class="hday-right">
+                <div class="hday-cases">${s.totalCases} caso${s.totalCases !== 1 ? 's' : ''}</div>
+                <div class="hday-time">${s.avgPerCase > 0 ? formatShort(s.avgPerCase) + '/caso' : '--'}</div>
+            </div>
+            <span class="hday-chevron${isOpen ? ' open' : ''}">▼</span>
+        </div>
+    </div>`;
+
+    if (!isOpen) return `<div class="history-day">${header}</div>`;
+
+    const statsRow = `
+    <div class="hday-stats-row">
+        <div class="hday-stat">
+            <div class="hday-stat-val">${formatDuration(s.workMs)}</div>
+            <div class="hday-stat-lbl">Trabalhado</div>
+        </div>
+        <div class="hday-stat">
+            <div class="hday-stat-val">${formatShort(s.pauseMs) !== '--' ? formatShort(s.pauseMs) : '0s'}</div>
+            <div class="hday-stat-lbl">Em pausa</div>
+        </div>
+        <div class="hday-stat">
+            <div class="hday-stat-val">${s.avgPerCase > 0 ? formatShort(s.avgPerCase) : '--'}</div>
+            <div class="hday-stat-lbl">Média/caso</div>
+        </div>
+        <div class="hday-stat">
+            <div class="hday-stat-val">${s.avgPerSlide > 0 ? formatShort(s.avgPerSlide) : '--'}</div>
+            <div class="hday-stat-lbl">Média/lâmina</div>
+        </div>
+        <div class="hday-stat">
+            <div class="hday-stat-val">${s.totalCases}</div>
+            <div class="hday-stat-lbl">Casos</div>
+        </div>
+        <div class="hday-stat">
+            <div class="hday-stat-val">${s.totalSlides}</div>
+            <div class="hday-stat-lbl">Lâminas</div>
+        </div>
+    </div>`;
+
+    const casesRows = day.cases.map(c => `
+        <div class="hday-case-row">
+            <span class="case-num">Caso #${c.id}</span>
+            <span class="case-slides">${c.slides} lâmina${c.slides !== 1 ? 's' : ''}</span>
+            <span class="case-time">${new Date(c.endTime).toLocaleTimeString('pt-BR', {hour: '2-digit', minute: '2-digit'})}</span>
+            <span class="case-dur">${formatShort(c.duration)}</span>
+        </div>`).reverse().join('');
+
+    const body = `
+    <div class="history-day-body">
+        ${statsRow}
+        <div class="hday-cases-list">${casesRows}</div>
+    </div>`;
+
+    return `<div class="history-day">${header}${body}</div>`;
 }
 
 /* ──────────── Events ──────────── */
@@ -709,7 +872,6 @@ function attachEvents() {
         const input = document.getElementById('slidesInput');
         const slides = Math.max(1, parseInt(input.value) || 1);
         registerCase(slides);
-        // reset input and refocus
         setTimeout(() => {
             const inp = document.getElementById('slidesInput');
             if (inp) { inp.value = 1; inp.select(); }
@@ -728,7 +890,17 @@ function attachEvents() {
     });
 
     document.getElementById('btnNewDay')?.addEventListener('click', () => {
-        if (confirm('Iniciar novo dia? Os dados de hoje serão mantidos até você confirmar.')) newDay();
+        if (confirm('Iniciar novo dia?')) newDay();
+    });
+
+    // History day expand/collapse
+    document.querySelectorAll('.history-day-header').forEach(el => {
+        el.addEventListener('click', () => {
+            const date = el.dataset.date;
+            if (expandedDays.has(date)) expandedDays.delete(date);
+            else expandedDays.add(date);
+            render();
+        });
     });
 }
 
