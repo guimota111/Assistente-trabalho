@@ -1,0 +1,1137 @@
+/* ──────────── Firebase ──────────── */
+const firebaseConfig = {
+    apiKey: "AIzaSyBWsWY3OJOZvy-2YVSWqDK_38dRi7eXAqA",
+    authDomain: "laudos-a7009.firebaseapp.com",
+    projectId: "laudos-a7009",
+    storageBucket: "laudos-a7009.firebasestorage.app",
+    messagingSenderId: "225605061167",
+    appId: "1:225605061167:web:f25c92f63b2617392114da"
+};
+firebase.initializeApp(firebaseConfig);
+const db  = firebase.firestore();
+const auth = firebase.auth();
+
+// Cache dados offline automaticamente
+db.enablePersistence({ synchronizeTabs: true })
+  .catch(err => console.warn('Persistence:', err.code));
+
+/* ──────────── State ──────────── */
+let data         = defaultData();
+let currentUser  = null;
+let authReady    = false;
+let timerInterval = null;
+let currentView  = 'today';
+let expandedYears    = new Set();
+let expandedMonths   = new Set();
+let expandedDays     = new Set();
+let expandedSessions = new Set();
+let historyCache     = null;
+let menuOpen         = false;
+let statsView        = 'week';
+let statsSegment     = 'all';
+
+/* ──────────── Utilities ──────────── */
+function now()      { return Date.now(); }
+function ts(iso)    { return new Date(iso).getTime(); }
+function pad(n)     { return String(n).padStart(2, '0'); }
+function todayStr() { return new Date().toISOString().split('T')[0]; }
+
+function formatDuration(ms) {
+    if (!ms || ms < 0) ms = 0;
+    const s = Math.floor(ms / 1000);
+    const h = Math.floor(s / 3600);
+    const m = Math.floor((s % 3600) / 60);
+    const sec = s % 60;
+    if (h > 0) return `${h}:${pad(m)}:${pad(sec)}`;
+    return `${pad(m)}:${pad(sec)}`;
+}
+
+function formatShort(ms) {
+    if (!ms || ms <= 0) return '--';
+    const s = Math.floor(ms / 1000);
+    const h = Math.floor(s / 3600);
+    const m = Math.floor((s % 3600) / 60);
+    const sec = s % 60;
+    if (h > 0) return `${h}h ${pad(m)}m`;
+    if (m > 0) return `${m}m ${pad(sec)}s`;
+    return `${sec}s`;
+}
+
+function formatDateShort(dateStr) {
+    const [y, m, d] = dateStr.split('-').map(Number);
+    return new Date(y, m - 1, d).toLocaleDateString('pt-BR', {
+        weekday: 'short', day: 'numeric', month: 'short'
+    });
+}
+
+function setText(id, val) {
+    const el = document.getElementById(id);
+    if (el) el.textContent = val;
+}
+
+/* ──────────── Data defaults ──────────── */
+function defaultData() {
+    return {
+        state: 'idle',
+        date: todayStr(),
+        workStartTime: null,
+        currentCaseStart: null,
+        cases: [],
+        pauses: [],
+        currentPauseStart: null,
+        dayEndTime: null,
+    };
+}
+
+/* ──────────── Firestore refs ──────────── */
+function currentRef()      { return db.collection('users').doc(currentUser.uid).collection('data').doc('current'); }
+function historyRef(date)  { return db.collection('users').doc(currentUser.uid).collection('history').doc(date); }
+function historyCollRef()  { return db.collection('users').doc(currentUser.uid).collection('history'); }
+
+/* ──────────── Data operations ──────────── */
+async function initData() {
+    try {
+        const doc = await currentRef().get();
+        if (doc.exists) {
+            const d = doc.data();
+            d.cases  = d.cases  || [];
+            d.pauses = d.pauses || [];
+            if (d.date !== todayStr()) {
+                if (d.workStartTime && d.cases.length > 0) await saveToHistory(d);
+                data = defaultData();
+                saveData();
+            } else {
+                data = d;
+            }
+        } else {
+            data = defaultData();
+            saveData();
+        }
+    } catch (e) {
+        console.warn('initData:', e);
+        data = defaultData();
+    }
+}
+
+function saveData() {
+    if (!currentUser) return;
+    currentRef().set(data).catch(e => console.warn('saveData:', e));
+}
+
+async function saveToHistory(dayData) {
+    if (!currentUser || !dayData.workStartTime || !(dayData.cases || []).length) return;
+    const newSession = {
+        workStartTime: dayData.workStartTime,
+        dayEndTime: dayData.dayEndTime || new Date().toISOString(),
+        cases: dayData.cases,
+        pauses: dayData.pauses || [],
+    };
+    historyCache = null;
+    try {
+        const existing = await historyRef(dayData.date).get();
+        if (existing.exists) {
+            const d = existing.data();
+            // migra formato antigo (sem sessions) para o novo
+            const sessions = d.sessions || [{
+                workStartTime: d.workStartTime,
+                dayEndTime: d.dayEndTime,
+                cases: d.cases || [],
+                pauses: d.pauses || [],
+            }];
+            sessions.push(newSession);
+            await historyRef(dayData.date).set({ date: dayData.date, sessions });
+        } else {
+            await historyRef(dayData.date).set({ date: dayData.date, sessions: [newSession] });
+        }
+    } catch (e) { console.warn('saveToHistory:', e); }
+}
+
+async function loadHistory() {
+    if (historyCache) return historyCache;
+    if (!currentUser) return {};
+    try {
+        const snap = await historyCollRef().get();
+        historyCache = {};
+        snap.forEach(doc => { historyCache[doc.id] = doc.data(); });
+    } catch (e) {
+        console.warn('loadHistory:', e);
+        historyCache = {};
+    }
+    return historyCache;
+}
+
+function calcDayStats(day) {
+    // suporta formato novo (sessions[]) e antigo (campos diretos)
+    const sessions = day.sessions || [{
+        workStartTime: day.workStartTime,
+        dayEndTime: day.dayEndTime,
+        cases: day.cases || [],
+        pauses: day.pauses || [],
+    }];
+    let allCases = [], pauseMs = 0;
+    for (const s of sessions) {
+        allCases = allCases.concat(s.cases || []);
+        const spauses = s.pauses || [];
+        pauseMs += spauses.reduce((a, p) => a + ts(p.end) - ts(p.start), 0);
+    }
+    // tempo trabalhado = soma das durações dos casos
+    const workMs = allCases.reduce((a, c) => a + c.duration, 0);
+    const ownCases = allCases.filter(c => !c.thirdParty);
+    const totalCases      = allCases.length;
+    const ownTotalCases   = ownCases.length;
+    const totalSlides     = allCases.reduce((a, c) => a + c.slides, 0);
+    const ownTotalSlides  = ownCases.reduce((a, c) => a + c.slides, 0);
+    const totalCasesMs    = allCases.reduce((a, c) => a + c.duration, 0);
+    const ownCasesMs      = ownCases.reduce((a, c) => a + c.duration, 0);
+    return {
+        totalCases,
+        ownTotalCases,
+        totalSlides,
+        ownTotalSlides,
+        totalCasesMs,
+        ownCasesMs,
+        avgPerCase:    totalCases    > 0 ? totalCasesMs / totalCases    : 0,
+        avgPerSlide:   totalSlides   > 0 ? totalCasesMs / totalSlides   : 0,
+        ownAvgPerCase: ownTotalCases > 0 ? ownCasesMs  / ownTotalCases : 0,
+        workMs,
+        pauseMs,
+        sessionCount: sessions.length,
+        allCases,
+    };
+}
+
+/* ──────────── Auth ──────────── */
+async function signIn() {
+    const provider = new firebase.auth.GoogleAuthProvider();
+    try {
+        await auth.signInWithPopup(provider);
+    } catch (e) {
+        if (e.code !== 'auth/popup-closed-by-user' && e.code !== 'auth/cancelled-popup-request') {
+            await auth.signInWithRedirect(provider);
+        }
+    }
+}
+
+async function doSignOut() {
+    stopTimer();
+    historyCache = null;
+    await auth.signOut();
+}
+
+/* ──────────── Time calculations ──────────── */
+function getTotalWorkingTime() {
+    if (!data.workStartTime) return 0;
+    const endRef = data.dayEndTime ? ts(data.dayEndTime) : now();
+    let pauseMs = 0;
+    for (const p of data.pauses) pauseMs += ts(p.end) - ts(p.start);
+    if (data.currentPauseStart) pauseMs += endRef - ts(data.currentPauseStart);
+    return Math.max(0, endRef - ts(data.workStartTime) - pauseMs);
+}
+
+function getTotalPauseTime() {
+    let ms = 0;
+    for (const p of data.pauses) ms += ts(p.end) - ts(p.start);
+    if (data.currentPauseStart) ms += now() - ts(data.currentPauseStart);
+    return ms;
+}
+
+function getCurrentPauseDuration() {
+    if (!data.currentPauseStart) return 0;
+    return now() - ts(data.currentPauseStart);
+}
+
+function getCurrentCaseDuration() {
+    if (!data.currentCaseStart) return 0;
+    const caseStart = ts(data.currentCaseStart);
+    let duration = now() - caseStart;
+    for (const p of data.pauses) {
+        const os = Math.max(ts(p.start), caseStart);
+        const oe = Math.min(ts(p.end), now());
+        if (oe > os) duration -= (oe - os);
+    }
+    if (data.currentPauseStart) {
+        const os = Math.max(ts(data.currentPauseStart), caseStart);
+        if (now() > os) duration -= (now() - os);
+    }
+    return Math.max(0, duration);
+}
+
+function getStats() {
+    const totalCases   = data.cases.length;
+    const totalSlides  = data.cases.reduce((a, c) => a + c.slides, 0);
+    const totalCasesMs = data.cases.reduce((a, c) => a + c.duration, 0);
+    return {
+        totalCases,
+        totalSlides,
+        totalWorkMs:  getTotalWorkingTime(),
+        totalPauseMs: getTotalPauseTime(),
+        avgPerCase:   totalCases  > 0 ? totalCasesMs / totalCases  : 0,
+        avgPerSlide:  totalSlides > 0 ? totalCasesMs / totalSlides : 0,
+    };
+}
+
+/* ──────────── Actions ──────────── */
+function startWork() {
+    const t = new Date().toISOString();
+    data = defaultData();
+    data.state = 'working';
+    data.workStartTime = t;
+    data.currentCaseStart = t;
+    saveData();
+    renderRoot();
+    startTimer();
+}
+
+function registerCase(slides, thirdParty = false) {
+    const endTime   = new Date().toISOString();
+    const caseStart = ts(data.currentCaseStart);
+    const caseEnd   = ts(endTime);
+    let duration = caseEnd - caseStart;
+    for (const p of data.pauses) {
+        const os = Math.max(ts(p.start), caseStart);
+        const oe = Math.min(ts(p.end), caseEnd);
+        if (oe > os) duration -= (oe - os);
+    }
+    const entry = {
+        id: data.cases.length + 1,
+        startTime: data.currentCaseStart,
+        endTime,
+        slides,
+        duration: Math.max(0, duration),
+    };
+    if (thirdParty) entry.thirdParty = true;
+    data.cases.push(entry);
+    data.currentCaseStart = endTime;
+    saveData();
+    renderRoot();
+}
+
+function pauseWork() {
+    data.state = 'paused';
+    data.currentPauseStart = new Date().toISOString();
+    saveData();
+    renderRoot();
+}
+
+function resumeWork() {
+    data.pauses.push({ start: data.currentPauseStart, end: new Date().toISOString() });
+    data.currentPauseStart = null;
+    data.state = 'working';
+    saveData();
+    renderRoot();
+}
+
+async function endDay() {
+    if (data.state === 'paused') {
+        data.pauses.push({ start: data.currentPauseStart, end: new Date().toISOString() });
+        data.currentPauseStart = null;
+    }
+    data.state = 'ended';
+    data.dayEndTime = new Date().toISOString();
+    saveData();
+    await saveToHistory(data);
+    stopTimer();
+    renderRoot();
+}
+
+function newDay() {
+    stopTimer();
+    data = defaultData();
+    saveData();
+    renderRoot();
+}
+
+function deleteCase(caseId) {
+    if (!confirm('Apagar este caso?')) return;
+    data.cases = data.cases.filter(c => c.id !== caseId);
+    data.cases.forEach((c, i) => c.id = i + 1);
+    saveData();
+    renderRoot();
+}
+
+async function deleteHistoryDay(date) {
+    const label = formatDateShort(date);
+    if (!confirm(`Apagar o dia "${label}" do histórico?`)) return;
+    try {
+        await historyRef(date).delete();
+        if (historyCache) delete historyCache[date];
+        expandedDays.delete(date);
+        renderRoot();
+    } catch (e) {
+        console.warn('deleteHistoryDay:', e);
+        alert('Erro ao apagar o dia.');
+    }
+}
+
+async function deleteHistorySession(date, sessionIdx) {
+    if (!confirm('Apagar esta sessão?')) return;
+    try {
+        const doc = await historyRef(date).get();
+        if (!doc.exists) return;
+        const d = doc.data();
+        const sessions = (d.sessions || []).filter((_, i) => i !== sessionIdx);
+        if (sessions.length === 0) {
+            await historyRef(date).delete();
+            if (historyCache) delete historyCache[date];
+            expandedDays.delete(date);
+        } else {
+            await historyRef(date).set({ date, sessions });
+            if (historyCache) historyCache[date] = { date, sessions };
+        }
+        expandedSessions.delete(`${date}-${sessionIdx}`);
+        renderRoot();
+    } catch (e) {
+        console.warn('deleteHistorySession:', e);
+        alert('Erro ao apagar a sessão.');
+    }
+}
+
+async function deleteHistoryCase(date, sessionIdx, caseIdx) {
+    if (!confirm('Apagar este caso?')) return;
+    try {
+        const doc = await historyRef(date).get();
+        if (!doc.exists) return;
+        const d = doc.data();
+        const sessions = d.sessions ? d.sessions.map(s => ({ ...s, cases: [...(s.cases || [])] })) : [];
+        sessions[sessionIdx].cases.splice(caseIdx, 1);
+        await historyRef(date).set({ date, sessions });
+        if (historyCache) historyCache[date] = { date, sessions };
+        renderRoot();
+    } catch (e) {
+        console.warn('deleteHistoryCase:', e);
+        alert('Erro ao apagar o caso.');
+    }
+}
+
+/* ──────────── Timer ──────────── */
+function startTimer() {
+    stopTimer();
+    timerInterval = setInterval(tickTimer, 1000);
+}
+function stopTimer() {
+    if (timerInterval) { clearInterval(timerInterval); timerInterval = null; }
+}
+function tickTimer() {
+    const s = getStats();
+    setText('mainTimer',        formatDuration(getTotalWorkingTime()));
+    setText('pauseInfo',        'Em pausa: ' + formatDuration(getCurrentPauseDuration()));
+    setText('currentCaseTimer', 'Caso atual: ' + formatDuration(getCurrentCaseDuration()));
+    setText('statWork',         formatDuration(s.totalWorkMs));
+    setText('statPause',        formatDuration(s.totalPauseMs));
+    setText('statAvgCase',      s.totalCases  > 0 ? formatShort(s.avgPerCase)  : '--');
+    setText('statAvgSlide',     s.totalSlides > 0 ? formatShort(s.avgPerSlide) : '--');
+}
+
+/* ──────────── View ──────────── */
+async function setView(view) {
+    menuOpen = false;
+    currentView = view;
+    if ((view === 'history' || view === 'records' || view === 'stats') && !historyCache) {
+        renderRoot();
+        await loadHistory();
+    }
+    renderRoot();
+}
+
+/* ──────────── Render ──────────── */
+function renderRoot() {
+    const root = document.getElementById('root');
+    if (!authReady) { root.innerHTML = renderLoadingHTML(); return; }
+    if (!currentUser) { root.innerHTML = renderLoginHTML(); attachEvents(); return; }
+
+    const date = new Date().toLocaleDateString('pt-BR', {
+        weekday: 'long', day: 'numeric', month: 'long', year: 'numeric'
+    });
+    const avatarHTML = currentUser.photoURL
+        ? `<img class="sidebar-avatar" src="${currentUser.photoURL}" alt="">`
+        : `<div class="sidebar-avatar" style="background:var(--primary);display:flex;align-items:center;justify-content:center;color:white;font-weight:700">${(currentUser.displayName||'U')[0]}</div>`;
+
+    let contentHTML, viewTitle;
+    if (currentView === 'history') {
+        contentHTML = historyCache ? renderHistory() : '<div style="text-align:center;padding:40px;color:var(--text-muted)">Carregando...</div>';
+        viewTitle = 'Histórico';
+    } else if (currentView === 'records') {
+        contentHTML = renderRecords();
+        viewTitle = 'Records';
+    } else if (currentView === 'stats') {
+        contentHTML = renderStats();
+        viewTitle = 'Estatísticas';
+    } else {
+        contentHTML = renderToday();
+        viewTitle = 'Controle de Laudos';
+    }
+
+    root.innerHTML = `
+    <div class="sidebar-overlay${menuOpen ? ' open' : ''}" id="sidebarOverlay"></div>
+    <aside class="sidebar${menuOpen ? ' open' : ''}">
+        <div class="sidebar-top">
+            ${avatarHTML}
+            <div>
+                <div class="sidebar-user-name">${currentUser.displayName || 'Usuário'}</div>
+                <div class="sidebar-user-email">${currentUser.email || ''}</div>
+            </div>
+        </div>
+        <nav class="sidebar-nav">
+            <button class="sidebar-nav-item${currentView === 'today' ? ' active' : ''}" id="sideNavToday">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+                Hoje
+            </button>
+            <button class="sidebar-nav-item${currentView === 'history' ? ' active' : ''}" id="sideNavHistory">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                Histórico
+            </button>
+            <button class="sidebar-nav-item${currentView === 'records' ? ' active' : ''}" id="sideNavRecords">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 3 21 3 21 9"/><path d="M21 3L9 15"/><path d="M10 3H3v18h18v-7"/></svg>
+                Records
+            </button>
+            <button class="sidebar-nav-item${currentView === 'stats' ? ' active' : ''}" id="sideNavStats">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="12" width="4" height="9"/><rect x="10" y="7" width="4" height="14"/><rect x="17" y="3" width="4" height="18"/></svg>
+                Estatísticas
+            </button>
+        </nav>
+        <div class="sidebar-footer">
+            <button class="btn btn-outline" id="btnSignOut" style="width:100%;justify-content:center">Sair</button>
+        </div>
+    </aside>
+    <div class="container">
+        <header>
+            <div class="app-header">
+                <button class="btn-hamburger" id="btnMenu" aria-label="Menu">
+                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+                </button>
+                <div class="app-header-center"><h1>${viewTitle}</h1></div>
+                <div class="app-header-side"></div>
+            </div>
+            ${currentView === 'today' ? `<div class="date">${date}</div>` : ''}
+        </header>
+        <div id="app">${contentHTML}</div>
+    </div>`;
+
+    attachEvents();
+}
+
+function renderLoadingHTML() {
+    return `<div class="loading-screen"><div class="spinner"></div><div class="loading-text">Carregando...</div></div>`;
+}
+
+function renderLoginHTML() {
+    return `
+    <div class="login-screen">
+        <div class="login-card">
+            <div class="login-icon">📋</div>
+            <h1>Controle de Laudos</h1>
+            <p>Entre com sua conta Google para sincronizar seus dados entre todos os dispositivos.</p>
+            <button class="btn-google" id="btnSignIn">
+                <svg viewBox="0 0 24 24" width="20" height="20">
+                    <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+                    <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+                    <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z"/>
+                    <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
+                </svg>
+                Entrar com Google
+            </button>
+        </div>
+    </div>`;
+}
+
+function renderToday() {
+    const s = getStats();
+    if      (data.state === 'idle')    return renderIdle();
+    else if (data.state === 'working') return renderWorking(s);
+    else if (data.state === 'paused')  return renderPaused(s);
+    else                               return renderEnded(s);
+}
+
+function renderIdle() {
+    return `
+    <div class="card status-card state-idle">
+        <div class="state-badge">Aguardando</div>
+        <div class="main-timer">00:00</div>
+        <div class="timer-label">Tempo trabalhado</div>
+        <div class="actions">
+            <button class="btn btn-primary btn-lg" id="btnStart">Iniciar Trabalho</button>
+        </div>
+    </div>`;
+}
+
+function renderWorking(s) {
+    return `
+    <div class="card status-card state-working">
+        <div class="state-badge">Trabalhando</div>
+        <div class="main-timer" id="mainTimer">${formatDuration(getTotalWorkingTime())}</div>
+        <div class="timer-label">Tempo trabalhado</div>
+        <div class="current-case-badge" id="currentCaseTimer">Caso atual: ${formatDuration(getCurrentCaseDuration())}</div>
+        <div class="register-area">
+            <label for="slidesInput">Lâminas:</label>
+            <input class="slides-input" type="number" id="slidesInput" min="1" value="1">
+        </div>
+        <div class="register-area-btns">
+            <button class="btn btn-success" id="btnCase">Registrar Caso</button>
+            <button class="btn btn-outline" id="btnCase3rd" title="Registrar caso de segunda assinatura">+ Terceiro</button>
+        </div>
+        <div class="actions">
+            <button class="btn btn-pause" id="btnPause">Pausar</button>
+            <button class="btn btn-danger" id="btnEnd">Encerrar Sessão</button>
+        </div>
+    </div>
+    ${renderStatsGrid(s)}
+    ${renderCasesList()}`;
+}
+
+function renderPaused(s) {
+    return `
+    <div class="card status-card state-paused">
+        <div class="state-badge">Em Pausa</div>
+        <div class="main-timer" id="mainTimer">${formatDuration(getTotalWorkingTime())}</div>
+        <div class="timer-label">Tempo trabalhado</div>
+        <div class="pause-info" id="pauseInfo">Em pausa: ${formatDuration(getCurrentPauseDuration())}</div>
+        <div class="actions">
+            <button class="btn btn-primary" id="btnResume">Retomar Trabalho</button>
+            <button class="btn btn-danger" id="btnEnd">Encerrar Sessão</button>
+        </div>
+    </div>
+    ${renderStatsGrid(s)}
+    ${renderCasesList()}`;
+}
+
+function renderEnded(s) {
+    const totalPause = data.pauses.reduce((a, p) => a + ts(p.end) - ts(p.start), 0);
+    return `
+    <div class="card status-card state-ended">
+        <div class="state-badge">Sessão Encerrada</div>
+        <div class="main-timer">${formatDuration(getTotalWorkingTime())}</div>
+        <div class="timer-label">Total da sessão</div>
+        <div class="summary-grid">
+            <div class="summary-item"><div class="s-value">${s.totalCases}</div><div class="s-label">Casos laudados</div></div>
+            <div class="summary-item"><div class="s-value">${s.totalSlides}</div><div class="s-label">Lâminas analisadas</div></div>
+            <div class="summary-item"><div class="s-value">${s.totalCases > 0 ? formatShort(s.avgPerCase) : '--'}</div><div class="s-label">Média por caso</div></div>
+            <div class="summary-item"><div class="s-value">${s.totalSlides > 0 ? formatShort(s.avgPerSlide) : '--'}</div><div class="s-label">Média por lâmina</div></div>
+            <div class="summary-item"><div class="s-value">${totalPause > 0 ? formatShort(totalPause) : '0s'}</div><div class="s-label">Tempo em pausa</div></div>
+            <div class="summary-item"><div class="s-value">${data.pauses.length}</div><div class="s-label">Pausas realizadas</div></div>
+        </div>
+        <div class="actions">
+            <button class="btn btn-outline" id="btnNewDay">Iniciar Nova Sessão</button>
+        </div>
+    </div>
+    ${renderCasesList()}`;
+}
+
+function renderStatsGrid(s) {
+    return `
+    <div class="stats-grid">
+        <div class="stat-item"><div class="stat-value" id="statWork">${formatDuration(s.totalWorkMs)}</div><div class="stat-label">Trabalhado</div></div>
+        <div class="stat-item"><div class="stat-value" id="statPause">${formatDuration(s.totalPauseMs)}</div><div class="stat-label">Em Pausa</div></div>
+        <div class="stat-item"><div class="stat-value">${s.totalCases}</div><div class="stat-label">Casos</div></div>
+        <div class="stat-item"><div class="stat-value">${s.totalSlides}</div><div class="stat-label">Lâminas</div></div>
+        <div class="stat-item"><div class="stat-value" id="statAvgCase">${s.totalCases > 0 ? formatShort(s.avgPerCase) : '--'}</div><div class="stat-label">Média/Caso</div></div>
+        <div class="stat-item"><div class="stat-value" id="statAvgSlide">${s.totalSlides > 0 ? formatShort(s.avgPerSlide) : '--'}</div><div class="stat-label">Média/Lâmina</div></div>
+    </div>`;
+}
+
+function renderCasesList() {
+    const title = `<div class="card cases-card"><h2>Casos desta sessão${data.cases.length > 0 ? ' (' + data.cases.length + ')' : ''}</h2>`;
+    if (data.cases.length === 0) return title + `<div class="empty-cases">Nenhum caso registrado ainda.</div></div>`;
+    const rows = [...data.cases].reverse().map(c => `
+        <div class="case-item">
+            <span class="case-num">Caso #${c.id}${c.thirdParty ? ' <span class="badge-3rd">3°</span>' : ''}</span>
+            <span class="case-slides">${c.slides} lâmina${c.slides !== 1 ? 's' : ''}</span>
+            <span class="case-time">${new Date(c.endTime).toLocaleTimeString('pt-BR', {hour: '2-digit', minute: '2-digit'})}</span>
+            <span class="case-dur">${formatShort(c.duration)}</span>
+            <button class="btn-delete" data-delete-case="${c.id}" title="Apagar caso">✕</button>
+        </div>`).join('');
+    return title + `<div class="case-list">${rows}</div></div>`;
+}
+
+function renderHistory() {
+    const days = Object.values(historyCache).sort((a, b) => b.date.localeCompare(a.date));
+    if (days.length === 0) {
+        return `<div class="empty-history">Nenhum dia registrado ainda.<br>Encerre sua primeira sessão de trabalho para ver o histórico.</div>`;
+    }
+
+    let allCases = 0, allSlides = 0, allCasesMs = 0;
+    for (const day of days) {
+        const s = calcDayStats(day);
+        allCases += s.totalCases; allSlides += s.totalSlides; allCasesMs += s.totalCasesMs;
+    }
+    const totals = `
+    <div class="history-totals">
+        <div class="total-item"><div class="total-value">${days.length}</div><div class="total-label">Dias trabalhados</div></div>
+        <div class="total-item"><div class="total-value">${allCases}</div><div class="total-label">Total de casos</div></div>
+        <div class="total-item"><div class="total-value">${allSlides}</div><div class="total-label">Total de lâminas</div></div>
+        <div class="total-item"><div class="total-value">${allCases > 0 ? formatShort(allCasesMs / allCases) : '--'}</div><div class="total-label">Média geral/caso</div></div>
+    </div>`;
+
+    const byYear = {};
+    for (const day of days) {
+        const [y, m] = day.date.split('-');
+        if (!byYear[y]) byYear[y] = {};
+        if (!byYear[y][m]) byYear[y][m] = [];
+        byYear[y][m].push(day);
+    }
+
+    const yearBlocks = Object.keys(byYear).sort((a, b) => b - a).map(year => {
+        const isYearOpen = expandedYears.has(year);
+        let yCases = 0, ySlides = 0, yDays = 0;
+        for (const m of Object.keys(byYear[year])) {
+            for (const day of byYear[year][m]) {
+                const s = calcDayStats(day);
+                yCases += s.totalCases; ySlides += s.totalSlides; yDays++;
+            }
+        }
+        const monthBlocks = isYearOpen ? Object.keys(byYear[year]).sort((a, b) => b - a).map(month => {
+            const monthKey = `${year}-${month}`;
+            const isMonthOpen = expandedMonths.has(monthKey);
+            const monthDays = byYear[year][month];
+            let mCases = 0, mSlides = 0, mCasesMs = 0;
+            for (const day of monthDays) {
+                const s = calcDayStats(day);
+                mCases += s.totalCases; mSlides += s.totalSlides; mCasesMs += s.totalCasesMs;
+            }
+            const monthName = new Date(parseInt(year), parseInt(month) - 1, 1)
+                .toLocaleDateString('pt-BR', { month: 'long' });
+            const mLabel = monthName.charAt(0).toUpperCase() + monthName.slice(1);
+            const dayBlocks = isMonthOpen ? monthDays.map(renderHistoryDay).join('') : '';
+            return `
+            <div class="history-month">
+                <div class="history-month-header" data-month="${monthKey}">
+                    <div>
+                        <div class="hmonth-name">${mLabel}</div>
+                        <div class="hmonth-meta">${monthDays.length} dia${monthDays.length !== 1 ? 's' : ''} · ${mCases} caso${mCases !== 1 ? 's' : ''} · ${mSlides} lâminas · ${mCases > 0 ? formatShort(mCasesMs / mCases) + '/caso' : '--'}</div>
+                    </div>
+                    <span class="hday-chevron${isMonthOpen ? ' open' : ''}">▼</span>
+                </div>
+                ${isMonthOpen ? `<div class="history-month-body">${dayBlocks}</div>` : ''}
+            </div>`;
+        }).join('') : '';
+        return `
+        <div class="history-year">
+            <div class="history-year-header" data-year="${year}">
+                <div>
+                    <div class="hyear-label">${year}</div>
+                    <div class="hyear-meta">${yDays} dia${yDays !== 1 ? 's' : ''} · ${yCases} caso${yCases !== 1 ? 's' : ''} · ${ySlides} lâminas</div>
+                </div>
+                <span class="hday-chevron${isYearOpen ? ' open' : ''}" style="color:rgba(255,255,255,0.8)">▼</span>
+            </div>
+            ${isYearOpen ? `<div class="history-year-body">${monthBlocks}</div>` : ''}
+        </div>`;
+    }).join('');
+
+    return totals + yearBlocks;
+}
+
+function renderHistoryDay(day) {
+    const s = calcDayStats(day);
+    const isOpen = expandedDays.has(day.date);
+    const sessaoLabel = s.sessionCount > 1 ? ` · ${s.sessionCount} sessões` : '';
+    const header = `
+    <div class="history-day-header" data-date="${day.date}">
+        <div class="hday-left">
+            <div class="hday-date">${formatDateShort(day.date)}</div>
+            <div class="hday-meta">${s.totalSlides} lâminas · ${formatDuration(s.workMs)} trabalhado${sessaoLabel}</div>
+        </div>
+        <div style="display:flex;align-items:center;gap:4px">
+            <div class="hday-right">
+                <div class="hday-cases">${s.totalCases} caso${s.totalCases !== 1 ? 's' : ''}</div>
+                <div class="hday-time">${s.avgPerCase > 0 ? formatShort(s.avgPerCase) + '/caso' : '--'}</div>
+            </div>
+            <span class="hday-chevron${isOpen ? ' open' : ''}">▼</span>
+            <button class="btn-delete-day" data-delete-day="${day.date}" title="Apagar este dia">✕</button>
+        </div>
+    </div>`;
+    if (!isOpen) return `<div class="history-day">${header}</div>`;
+
+    const statsRow = `
+    <div class="hday-stats-row">
+        <div class="hday-stat"><div class="hday-stat-val">${formatDuration(s.workMs)}</div><div class="hday-stat-lbl">Total trabalhado</div></div>
+        <div class="hday-stat"><div class="hday-stat-val">${s.pauseMs > 0 ? formatShort(s.pauseMs) : '0s'}</div><div class="hday-stat-lbl">Em pausa</div></div>
+        <div class="hday-stat"><div class="hday-stat-val">${s.avgPerCase > 0 ? formatShort(s.avgPerCase) : '--'}</div><div class="hday-stat-lbl">Média/caso</div></div>
+        <div class="hday-stat"><div class="hday-stat-val">${s.avgPerSlide > 0 ? formatShort(s.avgPerSlide) : '--'}</div><div class="hday-stat-lbl">Média/lâmina</div></div>
+        <div class="hday-stat"><div class="hday-stat-val">${s.totalCases}</div><div class="hday-stat-lbl">Casos</div></div>
+        <div class="hday-stat"><div class="hday-stat-val">${s.totalSlides}</div><div class="hday-stat-lbl">Lâminas</div></div>
+    </div>`;
+
+    const sessions = day.sessions || [{
+        workStartTime: day.workStartTime, dayEndTime: day.dayEndTime,
+        cases: day.cases || [], pauses: day.pauses || [],
+    }];
+
+    const sessionCards = sessions.map((session, idx) => {
+        const key = `${day.date}-${idx}`;
+        const isSessOpen = expandedSessions.has(key);
+        const sCases  = session.cases  || [];
+        const sPauses = session.pauses || [];
+        const sWorkMs = sCases.reduce((a, c) => a + c.duration, 0);
+        const startHour = session.workStartTime
+            ? new Date(session.workStartTime).toLocaleTimeString('pt-BR', {hour:'2-digit', minute:'2-digit'}) : '--';
+        const endHour = session.dayEndTime
+            ? new Date(session.dayEndTime).toLocaleTimeString('pt-BR', {hour:'2-digit', minute:'2-digit'}) : '--';
+        const caseRows = [...sCases].reverse().map((c, ri, arr) => {
+            const origIdx = sCases.length - 1 - ri;
+            return `
+            <div class="hday-case-row" style="grid-template-columns: auto 1fr auto auto auto;">
+                <span class="case-num">Caso #${arr.length - ri}${c.thirdParty ? ' <span class="badge-3rd">3°</span>' : ''}</span>
+                <span class="case-slides">${c.slides} lâmina${c.slides !== 1 ? 's' : ''}</span>
+                <span class="case-time">${new Date(c.endTime).toLocaleTimeString('pt-BR', {hour: '2-digit', minute: '2-digit'})}</span>
+                <span class="case-dur">${formatShort(c.duration)}</span>
+                <button class="btn-delete" data-delete-hcase data-date="${day.date}" data-session="${idx}" data-caseidx="${origIdx}" title="Apagar caso">✕</button>
+            </div>`;
+        }).join('');
+
+        return `
+        <div class="session-card">
+            <div class="session-header" data-session-key="${key}">
+                <div class="session-header-left">
+                    <div class="session-title">Sessão ${idx + 1} · ${startHour} – ${endHour}</div>
+                    <div class="session-meta">${sCases.length} caso${sCases.length !== 1 ? 's' : ''} · ${formatDuration(sWorkMs)} trabalhado</div>
+                </div>
+                <div class="session-header-right">
+                    <span class="session-cases-count">${sCases.length}</span>
+                    <span class="session-chevron${isSessOpen ? ' open' : ''}">▼</span>
+                    <button class="btn-delete" data-delete-session data-date="${day.date}" data-session="${idx}" title="Apagar sessão">✕</button>
+                </div>
+            </div>
+            ${isSessOpen ? `<div class="session-body"><div class="session-cases-list">${caseRows || '<div style="color:var(--text-muted);font-size:0.82rem;padding:4px 0">Nenhum caso.</div>'}</div></div>` : ''}
+        </div>`;
+    }).join('');
+
+    return `<div class="history-day">${header}<div class="history-day-body">${statsRow}${sessionCards}</div></div>`;
+}
+
+/* ──────────── Records ──────────── */
+function renderRecords() {
+    if (!historyCache) return '<div style="text-align:center;padding:40px;color:var(--text-muted)">Carregando...</div>';
+    const days = Object.values(historyCache).sort((a, b) => a.date.localeCompare(b.date));
+    if (days.length === 0) return `<div class="empty-history">Nenhum histórico ainda.<br>Encerre sua primeira sessão para ver os records.</div>`;
+
+    function weekKey(dateStr) {
+        const d = new Date(dateStr + 'T12:00:00');
+        const jan4 = new Date(d.getFullYear(), 0, 4);
+        const startOfWeek = new Date(jan4);
+        startOfWeek.setDate(jan4.getDate() - jan4.getDay() + 1);
+        const diff = d - startOfWeek;
+        const weekNum = Math.floor(diff / 604800000) + 1;
+        return `${d.getFullYear()}-W${String(weekNum).padStart(2,'0')}`;
+    }
+
+    const dayStats = days.map(d => ({ date: d.date, ...calcDayStats(d) }));
+
+    const bestDayCases  = dayStats.reduce((a, b) => b.totalCases  > a.totalCases  ? b : a, dayStats[0]);
+    const bestDaySlides = dayStats.reduce((a, b) => b.totalSlides > a.totalSlides ? b : a, dayStats[0]);
+    const speedDays     = dayStats.filter(d => d.avgPerCase > 0);
+    const bestDaySpeed  = speedDays.length ? speedDays.reduce((a, b) => b.avgPerCase < a.avgPerCase ? b : a, speedDays[0]) : null;
+
+    const weekMap = {};
+    for (const d of dayStats) {
+        const wk = weekKey(d.date);
+        if (!weekMap[wk]) weekMap[wk] = { cases: 0, slides: 0, days: 0 };
+        weekMap[wk].cases  += d.totalCases;
+        weekMap[wk].slides += d.totalSlides;
+        weekMap[wk].days++;
+    }
+    const weeks = Object.values(weekMap);
+    const bestWeekCases  = weeks.length ? weeks.reduce((a, b) => b.cases  > a.cases  ? b : a, weeks[0]) : null;
+    const bestWeekSlides = weeks.length ? weeks.reduce((a, b) => b.slides > a.slides ? b : a, weeks[0]) : null;
+
+    const monthMap = {};
+    for (const d of dayStats) {
+        const mk = d.date.slice(0, 7);
+        if (!monthMap[mk]) monthMap[mk] = { cases: 0, slides: 0, days: 0 };
+        monthMap[mk].cases  += d.totalCases;
+        monthMap[mk].slides += d.totalSlides;
+        monthMap[mk].days++;
+    }
+    const months = Object.entries(monthMap);
+    const bestMonthEntry  = months.length ? months.reduce((a, b) => b[1].cases  > a[1].cases  ? b : a, months[0]) : null;
+    const bestMonthSlides = months.length ? months.reduce((a, b) => b[1].slides > a[1].slides ? b : a, months[0]) : null;
+
+    function monthLabel(mk) {
+        const [y, m] = mk.split('-');
+        const name = new Date(parseInt(y), parseInt(m)-1, 1).toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
+        return name.charAt(0).toUpperCase() + name.slice(1);
+    }
+
+    const rc = (icon, value, label, date, isGold) => `
+    <div class="record-card${isGold ? ' gold' : ''}">
+        <div class="record-icon">${icon}</div>
+        <div class="record-value">${value}</div>
+        <div class="record-label">${label}</div>
+        ${date ? `<div class="record-date">${date}</div>` : ''}
+    </div>`;
+
+    return `
+    <div class="records-section">
+        <div class="records-section-title">Records de Dia</div>
+        <div class="records-grid">
+            ${rc('🏆', bestDayCases.totalCases, 'Mais casos num dia', formatDateShort(bestDayCases.date), true)}
+            ${rc('🔬', bestDaySlides.totalSlides, 'Mais lâminas num dia', formatDateShort(bestDaySlides.date), false)}
+            ${bestDaySpeed ? rc('⚡', formatShort(bestDaySpeed.avgPerCase), 'Melhor média/caso', formatDateShort(bestDaySpeed.date), false) : rc('⚡', '--', 'Melhor média/caso', '', false)}
+            ${rc('📅', days.length, 'Total de dias trabalhados', '', false)}
+        </div>
+    </div>
+    <div class="records-section">
+        <div class="records-section-title">Records de Semana</div>
+        <div class="records-grid">
+            ${bestWeekCases  ? rc('📈', bestWeekCases.cases,  'Mais casos numa semana',   `${bestWeekCases.days} dias`,  true)  : ''}
+            ${bestWeekSlides ? rc('🔬', bestWeekSlides.slides, 'Mais lâminas numa semana', `${bestWeekSlides.days} dias`, false) : ''}
+        </div>
+    </div>
+    <div class="records-section">
+        <div class="records-section-title">Records de Mês</div>
+        <div class="records-grid">
+            ${bestMonthEntry  ? rc('🏅', bestMonthEntry[1].cases,  'Mais casos num mês',   monthLabel(bestMonthEntry[0]),  true)  : ''}
+            ${bestMonthSlides ? rc('🔬', bestMonthSlides[1].slides, 'Mais lâminas num mês', monthLabel(bestMonthSlides[0]), false) : ''}
+        </div>
+    </div>`;
+}
+
+/* ──────────── Stats ──────────── */
+function renderStats() {
+    if (!historyCache) return '<div style="text-align:center;padding:40px;color:var(--text-muted)">Carregando...</div>';
+
+    const allDays = Object.values(historyCache).sort((a, b) => a.date.localeCompare(b.date));
+    const now2  = new Date();
+    const today = todayStr();
+
+    function inPeriod(dateStr) {
+        if (statsView === 'all') return true;
+        const d = new Date(dateStr + 'T12:00:00');
+        if (statsView === 'week') {
+            const weekAgo = new Date(now2); weekAgo.setDate(weekAgo.getDate() - 6);
+            return d >= weekAgo;
+        }
+        if (statsView === 'month') return dateStr.slice(0, 7) === today.slice(0, 7);
+        if (statsView === 'year')  return dateStr.slice(0, 4) === today.slice(0, 4);
+        return true;
+    }
+
+    const filtered = allDays.filter(d => inPeriod(d.date));
+    const dayStats = filtered.map(d => ({ date: d.date, ...calcDayStats(d) }));
+
+    let totalCases = 0, totalSlides = 0, totalCasesMs = 0, totalWorkMs = 0;
+    let totalOwn = 0, totalThird = 0;
+    for (const d of dayStats) {
+        if (statsSegment === 'own') {
+            totalCases   += d.ownTotalCases;
+            totalSlides  += d.ownTotalSlides;
+            totalCasesMs += d.ownCasesMs;
+        } else if (statsSegment === 'third') {
+            totalCases   += d.totalCases  - d.ownTotalCases;
+            totalSlides  += d.totalSlides - d.ownTotalSlides;
+            totalCasesMs += d.totalCasesMs - d.ownCasesMs;
+        } else {
+            totalCases   += d.totalCases;
+            totalSlides  += d.totalSlides;
+            totalCasesMs += d.totalCasesMs;
+        }
+        totalWorkMs += d.workMs;
+        totalOwn    += d.ownTotalCases;
+        totalThird  += d.totalCases - d.ownTotalCases;
+    }
+    const avgPerCase  = totalCases  > 0 ? totalCasesMs / totalCases  : 0;
+    const avgPerSlide = totalSlides > 0 ? totalCasesMs / totalSlides : 0;
+
+    const periodLabels = { week: 'Esta Semana', month: 'Este Mês', year: 'Este Ano', all: 'Geral' };
+    const periodTabs = ['week', 'month', 'year', 'all'].map(p =>
+        `<button class="period-btn${statsView === p ? ' active' : ''}" data-period="${p}">${periodLabels[p]}</button>`
+    ).join('');
+
+    let chartItems = [];
+    if (statsView === 'week') {
+        for (let i = 6; i >= 0; i--) {
+            const d = new Date(now2); d.setDate(d.getDate() - i);
+            const ds = d.toISOString().split('T')[0];
+            const found = dayStats.find(x => x.date === ds);
+            const val = found ? (statsSegment === 'own' ? found.ownTotalCases : statsSegment === 'third' ? found.totalCases - found.ownTotalCases : found.totalCases) : 0;
+            const lbl = d.toLocaleDateString('pt-BR', { weekday: 'short' }).replace('.','');
+            chartItems.push({ lbl, val, own: found ? found.ownTotalCases : 0, third: found ? found.totalCases - found.ownTotalCases : 0 });
+        }
+    } else if (statsView === 'month') {
+        const year = now2.getFullYear(), month = now2.getMonth();
+        const daysInMonth = new Date(year, month + 1, 0).getDate();
+        for (let i = 1; i <= daysInMonth; i++) {
+            const ds = `${year}-${String(month+1).padStart(2,'0')}-${String(i).padStart(2,'0')}`;
+            const found = dayStats.find(x => x.date === ds);
+            const val = found ? (statsSegment === 'own' ? found.ownTotalCases : statsSegment === 'third' ? found.totalCases - found.ownTotalCases : found.totalCases) : 0;
+            chartItems.push({ lbl: String(i), val, own: found ? found.ownTotalCases : 0, third: found ? found.totalCases - found.ownTotalCases : 0 });
+        }
+    } else {
+        const monthMap = {};
+        for (const d of dayStats) {
+            const mk = d.date.slice(0, 7);
+            if (!monthMap[mk]) monthMap[mk] = { own: 0, third: 0 };
+            monthMap[mk].own   += d.ownTotalCases;
+            monthMap[mk].third += d.totalCases - d.ownTotalCases;
+        }
+        for (const [mk, v] of Object.entries(monthMap).sort()) {
+            const [y, m] = mk.split('-');
+            const lbl = new Date(parseInt(y), parseInt(m)-1, 1).toLocaleDateString('pt-BR', { month: 'short' }).replace('.','');
+            const val = statsSegment === 'own' ? v.own : statsSegment === 'third' ? v.third : v.own + v.third;
+            chartItems.push({ lbl, val, own: v.own, third: v.third });
+        }
+    }
+
+    const maxVal = Math.max(...chartItems.map(c => c.val), 1);
+    const bars = chartItems.map(ci => {
+        const hPct    = Math.round((ci.val   / maxVal) * 90);
+        const ownPct  = Math.round((ci.own   / maxVal) * 90);
+        const thirdPct = Math.round((ci.third / maxVal) * 90);
+        let barHTML = '';
+        if (statsSegment === 'all' && ci.own + ci.third > 0) {
+            barHTML = `<div style="width:100%;display:flex;flex-direction:column;align-items:center;gap:1px;justify-content:flex-end;height:${hPct}px;">
+                ${ci.third > 0 ? `<div class="chart-bar secondary" style="height:${Math.max(thirdPct,2)}px;"></div>` : ''}
+                ${ci.own   > 0 ? `<div class="chart-bar" style="height:${Math.max(ownPct,2)}px;"></div>` : ''}
+            </div>`;
+        } else {
+            barHTML = `<div class="chart-bar${statsSegment === 'third' ? ' secondary' : ''}" style="height:${Math.max(hPct, ci.val > 0 ? 2 : 0)}px;"></div>`;
+        }
+        return `<div class="chart-col">
+            ${ci.val > 0 ? `<div class="chart-val">${ci.val}</div>` : ''}
+            ${barHTML}
+            <div class="chart-lbl">${ci.lbl}</div>
+        </div>`;
+    }).join('');
+
+    return `
+    <div class="stats-period-tabs">${periodTabs}</div>
+    <div class="stats-segment-row">
+        <div class="segment-chip${statsSegment === 'all'   ? ' active' : ''}" data-segment="all">
+            <div class="sc-val">${totalOwn + totalThird}</div>
+            <div class="sc-lbl">Todos os casos</div>
+        </div>
+        <div class="segment-chip${statsSegment === 'own'   ? ' active' : ''}" data-segment="own">
+            <div class="sc-val">${totalOwn}</div>
+            <div class="sc-lbl">Meus casos</div>
+        </div>
+        <div class="segment-chip${statsSegment === 'third' ? ' active' : ''}" data-segment="third">
+            <div class="sc-val">${totalThird}</div>
+            <div class="sc-lbl">Terceiros</div>
+        </div>
+    </div>
+    <div class="stats-summary-grid">
+        <div class="stats-summary-item"><div class="ssi-value">${totalCases}</div><div class="ssi-label">Casos</div></div>
+        <div class="stats-summary-item"><div class="ssi-value">${totalSlides}</div><div class="ssi-label">Lâminas</div></div>
+        <div class="stats-summary-item"><div class="ssi-value">${dayStats.length}</div><div class="ssi-label">Dias</div></div>
+        <div class="stats-summary-item"><div class="ssi-value">${avgPerCase  > 0 ? formatShort(avgPerCase)  : '--'}</div><div class="ssi-label">Média/Caso</div></div>
+        <div class="stats-summary-item"><div class="ssi-value">${avgPerSlide > 0 ? formatShort(avgPerSlide) : '--'}</div><div class="ssi-label">Média/Lâmina</div></div>
+        <div class="stats-summary-item"><div class="ssi-value">${formatShort(totalWorkMs) || '--'}</div><div class="ssi-label">Tempo total</div></div>
+    </div>
+    <div class="chart-wrap">
+        <div class="chart-title">Casos por período</div>
+        <div class="chart-bars">${bars}</div>
+        ${statsSegment === 'all' ? `<div class="chart-legend">
+            <div class="legend-item"><div class="legend-dot" style="background:var(--primary)"></div>Meus</div>
+            <div class="legend-item"><div class="legend-dot" style="background:#ca8a04"></div>Terceiros</div>
+        </div>` : ''}
+    </div>`;
+}
+
+/* ──────────── Events ──────────── */
+function attachEvents() {
+    document.getElementById('btnSignIn')?.addEventListener('click', signIn);
+    document.getElementById('btnSignOut')?.addEventListener('click', doSignOut);
+
+    document.getElementById('btnMenu')?.addEventListener('click', () => { menuOpen = true; renderRoot(); });
+    document.getElementById('sidebarOverlay')?.addEventListener('click', () => { menuOpen = false; renderRoot(); });
+    document.getElementById('sideNavToday')?.addEventListener('click',   () => setView('today'));
+    document.getElementById('sideNavHistory')?.addEventListener('click', () => setView('history'));
+    document.getElementById('sideNavRecords')?.addEventListener('click', () => setView('records'));
+    document.getElementById('sideNavStats')?.addEventListener('click',   () => setView('stats'));
+
+    document.getElementById('btnStart')?.addEventListener('click', startWork);
+    document.getElementById('btnCase3rd')?.addEventListener('click', () => {
+        const input = document.getElementById('slidesInput');
+        const slides = Math.max(1, parseInt(input.value) || 1);
+        registerCase(slides, true);
+        setTimeout(() => { const i = document.getElementById('slidesInput'); if (i) { i.value = 1; i.select(); } }, 50);
+    });
+    document.getElementById('btnCase')?.addEventListener('click', () => {
+        const input = document.getElementById('slidesInput');
+        const slides = Math.max(1, parseInt(input.value) || 1);
+        registerCase(slides);
+        setTimeout(() => { const i = document.getElementById('slidesInput'); if (i) { i.value = 1; i.select(); } }, 50);
+    });
+    document.getElementById('slidesInput')?.addEventListener('keydown', e => {
+        if (e.key === 'Enter') document.getElementById('btnCase')?.click();
+    });
+    document.getElementById('btnPause')?.addEventListener('click', pauseWork);
+    document.getElementById('btnResume')?.addEventListener('click', resumeWork);
+    document.getElementById('btnEnd')?.addEventListener('click', async () => {
+        if (confirm('Encerrar a sessão de trabalho?')) await endDay();
+    });
+    document.getElementById('btnNewDay')?.addEventListener('click', () => {
+        if (confirm('Iniciar nova sessão?')) newDay();
+    });
+
+    document.querySelectorAll('.history-year-header').forEach(el => {
+        el.addEventListener('click', () => {
+            const y = el.dataset.year;
+            if (expandedYears.has(y)) expandedYears.delete(y); else expandedYears.add(y);
+            renderRoot();
+        });
+    });
+    document.querySelectorAll('.history-month-header').forEach(el => {
+        el.addEventListener('click', () => {
+            const m = el.dataset.month;
+            if (expandedMonths.has(m)) expandedMonths.delete(m); else expandedMonths.add(m);
+            renderRoot();
+        });
+    });
+    document.querySelectorAll('.history-day-header').forEach(el => {
+        el.addEventListener('click', e => {
+            if (e.target.closest('.btn-delete-day')) return;
+            const date = el.dataset.date;
+            if (expandedDays.has(date)) expandedDays.delete(date); else expandedDays.add(date);
+            renderRoot();
+        });
+    });
+    document.querySelectorAll('.btn-delete-day').forEach(btn => {
+        btn.addEventListener('click', e => { e.stopPropagation(); deleteHistoryDay(btn.dataset.deleteDay); });
+    });
+    document.querySelectorAll('.session-header').forEach(el => {
+        el.addEventListener('click', e => {
+            if (e.target.closest('.btn-delete')) return;
+            const key = el.dataset.sessionKey;
+            if (expandedSessions.has(key)) expandedSessions.delete(key); else expandedSessions.add(key);
+            renderRoot();
+        });
+    });
+    document.querySelectorAll('.btn-delete[data-delete-session]').forEach(btn => {
+        btn.addEventListener('click', e => { e.stopPropagation(); deleteHistorySession(btn.dataset.date, parseInt(btn.dataset.session)); });
+    });
+    document.querySelectorAll('.btn-delete[data-delete-hcase]').forEach(btn => {
+        btn.addEventListener('click', e => { e.stopPropagation(); deleteHistoryCase(btn.dataset.date, parseInt(btn.dataset.session), parseInt(btn.dataset.caseidx)); });
+    });
+    document.querySelectorAll('.btn-delete[data-delete-case]').forEach(btn => {
+        btn.addEventListener('click', () => deleteCase(parseInt(btn.dataset.deleteCase)));
+    });
+
+    document.querySelectorAll('.period-btn[data-period]').forEach(btn => {
+        btn.addEventListener('click', () => { statsView = btn.dataset.period; renderRoot(); });
+    });
+    document.querySelectorAll('.segment-chip[data-segment]').forEach(chip => {
+        chip.addEventListener('click', () => { statsSegment = chip.dataset.segment; renderRoot(); });
+    });
+}
+
+/* ──────────── Init ──────────── */
+auth.onAuthStateChanged(async user => {
+    currentUser = user;
+    authReady   = true;
+    if (user) {
+        await initData();
+        renderRoot();
+        if (data.state === 'working' || data.state === 'paused') startTimer();
+    } else {
+        stopTimer();
+        data = defaultData();
+        renderRoot();
+    }
+});
+
+if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+        navigator.serviceWorker.register('/Assistente-trabalho/sw.js', {
+            scope: '/Assistente-trabalho/'
+        }).catch(() => {});
+    });
+}
