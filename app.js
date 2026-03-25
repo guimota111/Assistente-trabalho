@@ -80,6 +80,7 @@ function defaultData() {
         pauses: [],
         currentPauseStart: null,
         dayEndTime: null,
+        frozenStart: null,
     };
 }
 
@@ -176,28 +177,183 @@ function calcDayStats(day) {
     }
     // tempo trabalhado = soma das durações dos casos
     const workMs = allCases.reduce((a, c) => a + c.duration, 0);
-    const ownCases = allCases.filter(c => !c.thirdParty);
-    const totalCases      = allCases.length;
-    const ownTotalCases   = ownCases.length;
-    const totalSlides     = allCases.reduce((a, c) => a + c.slides, 0);
-    const ownTotalSlides  = ownCases.reduce((a, c) => a + c.slides, 0);
-    const totalCasesMs    = allCases.reduce((a, c) => a + c.duration, 0);
-    const ownCasesMs      = ownCases.reduce((a, c) => a + c.duration, 0);
+    const ownCases    = allCases.filter(c => !c.thirdParty);
+    const frozenCases = allCases.filter(c => c.frozen);
+    const totalCases        = allCases.length;
+    const ownTotalCases     = ownCases.length;
+    const totalSlides       = allCases.reduce((a, c) => a + c.slides, 0);
+    const ownTotalSlides    = ownCases.reduce((a, c) => a + c.slides, 0);
+    const totalCasesMs      = allCases.reduce((a, c) => a + c.duration, 0);
+    const ownCasesMs        = ownCases.reduce((a, c) => a + c.duration, 0);
+    const frozenTotalCases  = frozenCases.length;
+    const frozenTotalSlides = frozenCases.reduce((a, c) => a + c.slides, 0);
+    const frozenCasesMs     = frozenCases.reduce((a, c) => a + c.duration, 0);
     return {
-        totalCases,
-        ownTotalCases,
-        totalSlides,
-        ownTotalSlides,
-        totalCasesMs,
-        ownCasesMs,
-        avgPerCase:    totalCases    > 0 ? totalCasesMs / totalCases    : 0,
-        avgPerSlide:   totalSlides   > 0 ? totalCasesMs / totalSlides   : 0,
-        ownAvgPerCase: ownTotalCases > 0 ? ownCasesMs  / ownTotalCases : 0,
-        workMs,
-        pauseMs,
-        sessionCount: sessions.length,
-        allCases,
+        totalCases, ownTotalCases, frozenTotalCases,
+        totalSlides, ownTotalSlides, frozenTotalSlides,
+        totalCasesMs, ownCasesMs, frozenCasesMs,
+        avgPerCase:     totalCases      > 0 ? totalCasesMs   / totalCases      : 0,
+        avgPerSlide:    totalSlides     > 0 ? totalCasesMs   / totalSlides     : 0,
+        ownAvgPerCase:  ownTotalCases   > 0 ? ownCasesMs     / ownTotalCases   : 0,
+        frozenAvgPerCase: frozenTotalCases > 0 ? frozenCasesMs / frozenTotalCases : 0,
+        workMs, pauseMs, sessionCount: sessions.length, allCases,
     };
+}
+
+/* ──────────── History references (for speedometers) ──────────── */
+function getHistoryRefs() {
+    if (!historyCache) return null;
+    const days = Object.values(historyCache);
+    if (days.length === 0) return null;
+    let totalMs = 0, totalCases = 0, monthMs = 0, monthCases = 0, bestAvg = Infinity;
+    const thisMonth = todayStr().slice(0, 7);
+    for (const day of days) {
+        const s = calcDayStats(day);
+        if (s.totalCases > 0 && s.avgPerCase > 0) {
+            totalMs    += s.totalCasesMs;
+            totalCases += s.totalCases;
+            if (s.avgPerCase < bestAvg) bestAvg = s.avgPerCase;
+            if (day.date.startsWith(thisMonth)) { monthMs += s.totalCasesMs; monthCases += s.totalCases; }
+        }
+    }
+    if (totalCases === 0) return null;
+    return {
+        bestAvg:    bestAvg === Infinity ? 0 : bestAvg,
+        generalAvg: totalMs / totalCases,
+        monthlyAvg: monthCases > 0 ? monthMs / monthCases : 0,
+    };
+}
+
+/* ──────────── Pie chart segments ──────────── */
+function buildPieSegments(workMs, pauseMs) {
+    const total = workMs + pauseMs;
+    if (total === 0) return { work: '', pause: '' };
+    const cx = 55, cy = 55, r = 48;
+    const workPct = workMs / total;
+    function toXY(deg) {
+        const rad = (deg - 90) * Math.PI / 180;
+        return [+(cx + r * Math.cos(rad)).toFixed(2), +(cy + r * Math.sin(rad)).toFixed(2)];
+    }
+    if (workPct >= 0.9999) return { work: `M ${cx} ${cy-r} A ${r} ${r} 0 1 1 ${cx - 0.01} ${cy-r} Z`, pause: '' };
+    if (workPct <= 0.0001) return { work: '', pause: `M ${cx} ${cy-r} A ${r} ${r} 0 1 1 ${cx - 0.01} ${cy-r} Z` };
+    const wAngle = workPct * 360;
+    const [ex, ey] = toXY(wAngle);
+    const lf = wAngle > 180 ? 1 : 0;
+    return {
+        work:  `M ${cx} ${cy} L ${cx} ${cy-r} A ${r} ${r} 0 ${lf} 1 ${ex} ${ey} Z`,
+        pause: `M ${cx} ${cy} L ${ex} ${ey} A ${r} ${r} 0 ${1-lf} 1 ${cx} ${cy-r} Z`,
+    };
+}
+
+/* ──────────── Speedometer SVG ──────────── */
+function renderSpeedometerSVG(currentMs, refMs) {
+    const R = 62, cx = 80, cy = 76;
+    const arcLen = Math.PI * R;
+    const SMIN = 60000, SMAX = 1800000; // 1min – 30min scale
+    function norm(ms) {
+        if (!ms || ms <= 0) return -1;
+        return 1 - (Math.min(Math.max(ms, SMIN), SMAX) - SMIN) / (SMAX - SMIN);
+    }
+    const cV = norm(currentMs), rV = norm(refMs);
+    const trackD = `M ${cx-R} ${cy} A ${R} ${R} 0 0 0 ${cx+R} ${cy}`;
+    const dashLen = cV >= 0 ? (cV * arcLen).toFixed(1) : '0';
+    let arcColor = '#3b82f6';
+    if (refMs > 0 && currentMs > 0) arcColor = currentMs <= refMs ? '#22c55e' : '#ef4444';
+
+    let refLine = '';
+    if (rV >= 0) {
+        const a = Math.PI - rV * Math.PI;
+        const ox = (cx + (R+5)*Math.cos(a)).toFixed(1), oy = (cy - (R+5)*Math.sin(a)).toFixed(1);
+        const ix = (cx + (R-14)*Math.cos(a)).toFixed(1), iy = (cy - (R-14)*Math.sin(a)).toFixed(1);
+        refLine = `<line x1="${ox}" y1="${oy}" x2="${ix}" y2="${iy}" stroke="#fbbf24" stroke-width="3" stroke-linecap="round"/>`;
+    }
+    let needle = '';
+    if (cV >= 0) {
+        const a = Math.PI - cV * Math.PI;
+        const nx = (cx + (R-10)*Math.cos(a)).toFixed(1), ny = (cy - (R-10)*Math.sin(a)).toFixed(1);
+        needle = `<line x1="${cx}" y1="${cy}" x2="${nx}" y2="${ny}" stroke="white" stroke-width="2.5" stroke-linecap="round"/>
+        <circle cx="${cx}" cy="${cy}" r="5" fill="#1e293b" stroke="white" stroke-width="1.5"/>`;
+    }
+    return `<svg viewBox="0 0 160 88" xmlns="http://www.w3.org/2000/svg">
+        <path d="${trackD}" fill="none" stroke="#1e293b" stroke-width="11" stroke-linecap="round"/>
+        <path d="${trackD}" fill="none" stroke="${arcColor}" stroke-width="11" stroke-linecap="round"
+              stroke-dasharray="${dashLen} ${arcLen.toFixed(1)}"/>
+        ${refLine}${needle}
+        <text x="12" y="87" fill="#475569" font-size="9" font-family="system-ui,sans-serif">Lento</text>
+        <text x="119" y="87" fill="#475569" font-size="9" font-family="system-ui,sans-serif">Rápido</text>
+    </svg>`;
+}
+
+/* ──────────── Render speedometers ──────────── */
+function renderSpeedometers(s) {
+    if (s.avgPerCase <= 0) return '';
+    if (!historyCache) {
+        loadHistory().then(() => renderRoot()).catch(() => {});
+        return '';
+    }
+    const refs = getHistoryRefs();
+    if (!refs) return '';
+    const meters = [
+        { label: 'vs Melhor dia',    ref: refs.bestAvg,    icon: '🏆' },
+        { label: 'vs Média geral',   ref: refs.generalAvg, icon: '📊' },
+        { label: 'vs Média mensal',  ref: refs.monthlyAvg, icon: '📅' },
+    ].filter(m => m.ref > 0);
+    if (meters.length === 0) return '';
+    const cards = meters.map(m => {
+        const svg = renderSpeedometerSVG(s.avgPerCase, m.ref);
+        const diffPct = Math.round(Math.abs(s.avgPerCase - m.ref) / m.ref * 100);
+        const diffHtml = s.avgPerCase < m.ref
+            ? `<div class="speedometer-diff" style="color:var(--success)">↑ ${diffPct}% mais rápido</div>`
+            : s.avgPerCase > m.ref
+            ? `<div class="speedometer-diff" style="color:var(--danger)">↓ ${diffPct}% mais lento</div>`
+            : `<div class="speedometer-diff" style="color:var(--text-muted)">Igual</div>`;
+        return `<div class="speedometer-card">
+            <div class="speedometer-svg">${svg}</div>
+            <div class="speedometer-label">${m.label}</div>
+            <div class="speedometer-curr">${formatShort(s.avgPerCase)}/caso</div>
+            <div class="speedometer-ref">${m.icon} ref: ${formatShort(m.ref)}</div>
+            ${diffHtml}
+        </div>`;
+    }).join('');
+    return `<div class="card speedometers-wrap">
+        <div class="speedometers-title">Velocidade desta sessão</div>
+        <div class="speedometers-grid">${cards}</div>
+    </div>`;
+}
+
+/* ──────────── Render pie chart ──────────── */
+function renderPieChart(workMs, pauseMs) {
+    const total = workMs + pauseMs;
+    const segs = buildPieSegments(workMs, pauseMs);
+    const workPct  = total > 0 ? Math.round(workMs  / total * 100) : 100;
+    const pausePct = 100 - workPct;
+    return `<div class="card pie-wrap">
+        <div class="pie-title">Tempo da sessão</div>
+        <div class="pie-content">
+            <svg id="pieSVG" class="pie-svg" viewBox="0 0 110 110" xmlns="http://www.w3.org/2000/svg">
+                ${segs.pause ? `<path id="piePausePath" d="${segs.pause}" fill="var(--pause)" opacity="0.9"/>` : ''}
+                ${segs.work  ? `<path id="pieWorkPath"  d="${segs.work}"  fill="var(--primary)" opacity="0.9"/>` : ''}
+            </svg>
+            <div class="pie-legend">
+                <div class="pie-legend-item">
+                    <div class="pie-dot-sq" style="background:var(--primary)"></div>
+                    <div class="pie-legend-text">
+                        <div class="pie-legend-label">Trabalhado</div>
+                        <div id="pieLabelWork" class="pie-legend-val">${formatDuration(workMs)}</div>
+                        <div id="piePctWork" class="pie-legend-pct">${workPct}%</div>
+                    </div>
+                </div>
+                <div class="pie-legend-item">
+                    <div class="pie-dot-sq" style="background:var(--pause)"></div>
+                    <div class="pie-legend-text">
+                        <div class="pie-legend-label">Pausas</div>
+                        <div id="pieLabelPause" class="pie-legend-val">${formatDuration(pauseMs)}</div>
+                        <div id="piePctPause" class="pie-legend-pct">${pausePct}%</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>`;
 }
 
 /* ──────────── Auth ──────────── */
@@ -238,6 +394,11 @@ function getTotalPauseTime() {
 function getCurrentPauseDuration() {
     if (!data.currentPauseStart) return 0;
     return now() - ts(data.currentPauseStart);
+}
+
+function getCurrentFrozenDuration() {
+    if (!data.frozenStart) return 0;
+    return now() - ts(data.frozenStart);
 }
 
 function getCurrentCaseDuration() {
@@ -282,7 +443,7 @@ function startWork() {
     startTimer();
 }
 
-function registerCase(slides, thirdParty = false) {
+function registerCase(slides, thirdParty = false, frozen = false) {
     const endTime   = new Date().toISOString();
     const caseStart = ts(data.currentCaseStart);
     const caseEnd   = ts(endTime);
@@ -300,8 +461,21 @@ function registerCase(slides, thirdParty = false) {
         duration: Math.max(0, duration),
     };
     if (thirdParty) entry.thirdParty = true;
+    if (frozen) { entry.frozen = true; data.frozenStart = null; }
     data.cases.push(entry);
     data.currentCaseStart = endTime;
+    saveData();
+    renderRoot();
+}
+
+function startFrozen() {
+    data.frozenStart = new Date().toISOString();
+    saveData();
+    renderRoot();
+}
+
+function stopFrozen() {
+    data.frozenStart = null;
     saveData();
     renderRoot();
 }
@@ -420,6 +594,26 @@ function tickTimer() {
     setText('statPause',        formatDuration(s.totalPauseMs));
     setText('statAvgCase',      s.totalCases  > 0 ? formatShort(s.avgPerCase)  : '--');
     setText('statAvgSlide',     s.totalSlides > 0 ? formatShort(s.avgPerSlide) : '--');
+    if (data.frozenStart) setText('frozenTimer', formatDuration(getCurrentFrozenDuration()));
+    updatePieInPlace();
+}
+
+function updatePieInPlace() {
+    const workMs  = getTotalWorkingTime();
+    const pauseMs = getTotalPauseTime();
+    const total   = workMs + pauseMs;
+    const segs    = buildPieSegments(workMs, pauseMs);
+    const wp = document.getElementById('pieWorkPath');
+    const pp = document.getElementById('piePausePath');
+    if (wp) wp.setAttribute('d', segs.work);
+    if (pp) pp.setAttribute('d', segs.pause);
+    setText('pieLabelWork',  formatDuration(workMs));
+    setText('pieLabelPause', formatDuration(pauseMs));
+    if (total > 0) {
+        const wPct = Math.round(workMs / total * 100);
+        setText('piePctWork',  wPct + '%');
+        setText('piePctPause', (100 - wPct) + '%');
+    }
 }
 
 /* ──────────── View ──────────── */
@@ -565,9 +759,18 @@ function renderWorking(s) {
             <label for="slidesInput">Lâminas:</label>
             <input class="slides-input" type="number" id="slidesInput" min="1" value="1">
         </div>
+        ${data.frozenStart ? `
+        <div class="frozen-widget">
+            <span class="frozen-icon">🧊</span>
+            <span>Congelação — <span id="frozenTimer">${formatDuration(getCurrentFrozenDuration())}</span></span>
+            <button class="btn-stop-frozen" id="btnStopFrozen" title="Cancelar timer de congelação">✕</button>
+        </div>` : ''}
         <div class="register-area-btns">
             <button class="btn btn-success" id="btnCase">Registrar Caso</button>
             <button class="btn btn-outline" id="btnCase3rd" title="Registrar caso de segunda assinatura">+ Terceiro</button>
+            ${data.frozenStart
+                ? `<button class="btn btn-frozen" id="btnCaseFrozen">Registrar Congelação</button>`
+                : `<button class="btn btn-outline btn-frozen-start" id="btnStartFrozen" title="Registrar chegada de congelação">🧊 Congelação</button>`}
         </div>
         <div class="actions">
             <button class="btn btn-pause" id="btnPause">Pausar</button>
@@ -575,6 +778,8 @@ function renderWorking(s) {
         </div>
     </div>
     ${renderStatsGrid(s)}
+    ${renderSpeedometers(s)}
+    ${renderPieChart(getTotalWorkingTime(), getTotalPauseTime())}
     ${renderCasesList()}`;
 }
 
@@ -591,6 +796,8 @@ function renderPaused(s) {
         </div>
     </div>
     ${renderStatsGrid(s)}
+    ${renderSpeedometers(s)}
+    ${renderPieChart(getTotalWorkingTime(), getTotalPauseTime())}
     ${renderCasesList()}`;
 }
 
@@ -633,7 +840,7 @@ function renderCasesList() {
     if (data.cases.length === 0) return title + `<div class="empty-cases">Nenhum caso registrado ainda.</div></div>`;
     const rows = [...data.cases].reverse().map(c => `
         <div class="case-item">
-            <span class="case-num">Caso #${c.id}${c.thirdParty ? ' <span class="badge-3rd">3°</span>' : ''}</span>
+            <span class="case-num">Caso #${c.id}${c.thirdParty ? ' <span class="badge-3rd">3°</span>' : ''}${c.frozen ? ' <span class="badge-frozen">❄</span>' : ''}</span>
             <span class="case-slides">${c.slides} lâmina${c.slides !== 1 ? 's' : ''}</span>
             <span class="case-time">${new Date(c.endTime).toLocaleTimeString('pt-BR', {hour: '2-digit', minute: '2-digit'})}</span>
             <span class="case-dur">${formatShort(c.duration)}</span>
@@ -769,7 +976,7 @@ function renderHistoryDay(day) {
             const origIdx = sCases.length - 1 - ri;
             return `
             <div class="hday-case-row" style="grid-template-columns: auto 1fr auto auto auto;">
-                <span class="case-num">Caso #${arr.length - ri}${c.thirdParty ? ' <span class="badge-3rd">3°</span>' : ''}</span>
+                <span class="case-num">Caso #${arr.length - ri}${c.thirdParty ? ' <span class="badge-3rd">3°</span>' : ''}${c.frozen ? ' <span class="badge-frozen">❄</span>' : ''}</span>
                 <span class="case-slides">${c.slides} lâmina${c.slides !== 1 ? 's' : ''}</span>
                 <span class="case-time">${new Date(c.endTime).toLocaleTimeString('pt-BR', {hour: '2-digit', minute: '2-digit'})}</span>
                 <span class="case-dur">${formatShort(c.duration)}</span>
@@ -908,24 +1115,21 @@ function renderStats() {
     const dayStats = filtered.map(d => ({ date: d.date, ...calcDayStats(d) }));
 
     let totalCases = 0, totalSlides = 0, totalCasesMs = 0, totalWorkMs = 0;
-    let totalOwn = 0, totalThird = 0;
+    let totalOwn = 0, totalThird = 0, totalFrozen = 0;
     for (const d of dayStats) {
-        if (statsSegment === 'own') {
-            totalCases   += d.ownTotalCases;
-            totalSlides  += d.ownTotalSlides;
-            totalCasesMs += d.ownCasesMs;
-        } else if (statsSegment === 'third') {
-            totalCases   += d.totalCases  - d.ownTotalCases;
-            totalSlides  += d.totalSlides - d.ownTotalSlides;
-            totalCasesMs += d.totalCasesMs - d.ownCasesMs;
-        } else {
-            totalCases   += d.totalCases;
-            totalSlides  += d.totalSlides;
-            totalCasesMs += d.totalCasesMs;
-        }
-        totalWorkMs += d.workMs;
         totalOwn    += d.ownTotalCases;
         totalThird  += d.totalCases - d.ownTotalCases;
+        totalFrozen += d.frozenTotalCases;
+        totalWorkMs += d.workMs;
+        if (statsSegment === 'own') {
+            totalCases += d.ownTotalCases; totalSlides += d.ownTotalSlides; totalCasesMs += d.ownCasesMs;
+        } else if (statsSegment === 'third') {
+            totalCases += d.totalCases - d.ownTotalCases; totalSlides += d.totalSlides - d.ownTotalSlides; totalCasesMs += d.totalCasesMs - d.ownCasesMs;
+        } else if (statsSegment === 'frozen') {
+            totalCases += d.frozenTotalCases; totalSlides += d.frozenTotalSlides; totalCasesMs += d.frozenCasesMs;
+        } else {
+            totalCases += d.totalCases; totalSlides += d.totalSlides; totalCasesMs += d.totalCasesMs;
+        }
     }
     const avgPerCase  = totalCases  > 0 ? totalCasesMs / totalCases  : 0;
     const avgPerSlide = totalSlides > 0 ? totalCasesMs / totalSlides : 0;
@@ -935,76 +1139,104 @@ function renderStats() {
         `<button class="period-btn${statsView === p ? ' active' : ''}" data-period="${p}">${periodLabels[p]}</button>`
     ).join('');
 
+    // helper: get value for a found dayStats entry based on current segment
+    function segVal(f) {
+        if (!f) return 0;
+        if (statsSegment === 'own')    return f.ownTotalCases;
+        if (statsSegment === 'third')  return f.totalCases - f.ownTotalCases;
+        if (statsSegment === 'frozen') return f.frozenTotalCases;
+        return f.totalCases;
+    }
+
     let chartItems = [];
     if (statsView === 'week') {
         for (let i = 6; i >= 0; i--) {
             const d = new Date(now2); d.setDate(d.getDate() - i);
             const ds = d.toISOString().split('T')[0];
-            const found = dayStats.find(x => x.date === ds);
-            const val = found ? (statsSegment === 'own' ? found.ownTotalCases : statsSegment === 'third' ? found.totalCases - found.ownTotalCases : found.totalCases) : 0;
+            const f = dayStats.find(x => x.date === ds);
             const lbl = d.toLocaleDateString('pt-BR', { weekday: 'short' }).replace('.','');
-            chartItems.push({ lbl, val, own: found ? found.ownTotalCases : 0, third: found ? found.totalCases - found.ownTotalCases : 0 });
+            chartItems.push({ lbl, val: segVal(f), own: f ? f.ownTotalCases : 0, third: f ? f.totalCases - f.ownTotalCases : 0, frozen: f ? f.frozenTotalCases : 0 });
         }
     } else if (statsView === 'month') {
         const year = now2.getFullYear(), month = now2.getMonth();
         const daysInMonth = new Date(year, month + 1, 0).getDate();
         for (let i = 1; i <= daysInMonth; i++) {
             const ds = `${year}-${String(month+1).padStart(2,'0')}-${String(i).padStart(2,'0')}`;
-            const found = dayStats.find(x => x.date === ds);
-            const val = found ? (statsSegment === 'own' ? found.ownTotalCases : statsSegment === 'third' ? found.totalCases - found.ownTotalCases : found.totalCases) : 0;
-            chartItems.push({ lbl: String(i), val, own: found ? found.ownTotalCases : 0, third: found ? found.totalCases - found.ownTotalCases : 0 });
+            const f = dayStats.find(x => x.date === ds);
+            // Only label every 5th day to avoid overcrowding
+            const lbl = (i === 1 || i % 5 === 0) ? String(i) : '';
+            chartItems.push({ lbl, val: segVal(f), own: f ? f.ownTotalCases : 0, third: f ? f.totalCases - f.ownTotalCases : 0, frozen: f ? f.frozenTotalCases : 0 });
         }
     } else {
-        const monthMap = {};
+        const mMap = {};
         for (const d of dayStats) {
             const mk = d.date.slice(0, 7);
-            if (!monthMap[mk]) monthMap[mk] = { own: 0, third: 0 };
-            monthMap[mk].own   += d.ownTotalCases;
-            monthMap[mk].third += d.totalCases - d.ownTotalCases;
+            if (!mMap[mk]) mMap[mk] = { own: 0, third: 0, frozen: 0 };
+            mMap[mk].own    += d.ownTotalCases;
+            mMap[mk].third  += d.totalCases - d.ownTotalCases;
+            mMap[mk].frozen += d.frozenTotalCases;
         }
-        for (const [mk, v] of Object.entries(monthMap).sort()) {
+        for (const [mk, v] of Object.entries(mMap).sort()) {
             const [y, m] = mk.split('-');
             const lbl = new Date(parseInt(y), parseInt(m)-1, 1).toLocaleDateString('pt-BR', { month: 'short' }).replace('.','');
-            const val = statsSegment === 'own' ? v.own : statsSegment === 'third' ? v.third : v.own + v.third;
-            chartItems.push({ lbl, val, own: v.own, third: v.third });
+            const val = statsSegment === 'own' ? v.own : statsSegment === 'third' ? v.third : statsSegment === 'frozen' ? v.frozen : v.own + v.third;
+            chartItems.push({ lbl, val, own: v.own, third: v.third, frozen: v.frozen });
         }
     }
 
     const maxVal = Math.max(...chartItems.map(c => c.val), 1);
+    const isAll = statsSegment === 'all';
+    const isFrozen = statsSegment === 'frozen';
     const bars = chartItems.map(ci => {
-        const hPct    = Math.round((ci.val   / maxVal) * 90);
-        const ownPct  = Math.round((ci.own   / maxVal) * 90);
+        const hPct     = Math.round((ci.val   / maxVal) * 90);
+        const ownPct   = Math.round((ci.own   / maxVal) * 90);
         const thirdPct = Math.round((ci.third / maxVal) * 90);
-        let barHTML = '';
-        if (statsSegment === 'all' && ci.own + ci.third > 0) {
+        let barHTML, valHTML;
+
+        if (isAll && ci.own + ci.third > 0) {
             barHTML = `<div style="width:100%;display:flex;flex-direction:column;align-items:center;gap:1px;justify-content:flex-end;height:${hPct}px;">
                 ${ci.third > 0 ? `<div class="chart-bar secondary" style="height:${Math.max(thirdPct,2)}px;"></div>` : ''}
                 ${ci.own   > 0 ? `<div class="chart-bar" style="height:${Math.max(ownPct,2)}px;"></div>` : ''}
             </div>`;
+            // show own+third counts separately
+            if (ci.own > 0 && ci.third > 0) {
+                valHTML = `<div class="chart-val-stack"><span style="color:var(--primary)">${ci.own}</span><span style="color:#ca8a04">${ci.third}</span></div>`;
+            } else {
+                valHTML = ci.val > 0 ? `<div class="chart-val">${ci.val}</div>` : '';
+            }
         } else {
-            barHTML = `<div class="chart-bar${statsSegment === 'third' ? ' secondary' : ''}" style="height:${Math.max(hPct, ci.val > 0 ? 2 : 0)}px;"></div>`;
+            const barClass = isFrozen ? ' frozen' : statsSegment === 'third' ? ' secondary' : '';
+            barHTML = `<div class="chart-bar${barClass}" style="height:${Math.max(hPct, ci.val > 0 ? 2 : 0)}px;"></div>`;
+            valHTML = ci.val > 0 ? `<div class="chart-val">${ci.val}</div>` : '';
         }
-        return `<div class="chart-col">
-            ${ci.val > 0 ? `<div class="chart-val">${ci.val}</div>` : ''}
-            ${barHTML}
-            <div class="chart-lbl">${ci.lbl}</div>
-        </div>`;
+        return `<div class="chart-col">${valHTML}${barHTML}<div class="chart-lbl">${ci.lbl}</div></div>`;
     }).join('');
+
+    const legendHTML = isAll ? `<div class="chart-legend">
+        <div class="legend-item"><div class="legend-dot" style="background:var(--primary)"></div>Meus</div>
+        <div class="legend-item"><div class="legend-dot" style="background:#ca8a04"></div>Terceiros</div>
+    </div>` : isFrozen ? `<div class="chart-legend">
+        <div class="legend-item"><div class="legend-dot" style="background:#0891b2"></div>Congelações</div>
+    </div>` : '';
 
     return `
     <div class="stats-period-tabs">${periodTabs}</div>
     <div class="stats-segment-row">
-        <div class="segment-chip${statsSegment === 'all'   ? ' active' : ''}" data-segment="all">
+        <div class="segment-chip${statsSegment === 'all'    ? ' active' : ''}" data-segment="all">
             <div class="sc-val">${totalOwn + totalThird}</div>
             <div class="sc-lbl">Todos os casos</div>
         </div>
-        <div class="segment-chip${statsSegment === 'own'   ? ' active' : ''}" data-segment="own">
+        <div class="segment-chip${statsSegment === 'own'    ? ' active' : ''}" data-segment="own">
             <div class="sc-val">${totalOwn}</div>
             <div class="sc-lbl">Meus casos</div>
         </div>
-        <div class="segment-chip${statsSegment === 'third' ? ' active' : ''}" data-segment="third">
+        <div class="segment-chip${statsSegment === 'third'  ? ' active' : ''}" data-segment="third">
             <div class="sc-val">${totalThird}</div>
             <div class="sc-lbl">Terceiros</div>
+        </div>
+        <div class="segment-chip${statsSegment === 'frozen' ? ' active' : ''}" data-segment="frozen">
+            <div class="sc-val">❄ ${totalFrozen}</div>
+            <div class="sc-lbl">Congelações</div>
         </div>
     </div>
     <div class="stats-summary-grid">
@@ -1018,10 +1250,7 @@ function renderStats() {
     <div class="chart-wrap">
         <div class="chart-title">Casos por período</div>
         <div class="chart-bars">${bars}</div>
-        ${statsSegment === 'all' ? `<div class="chart-legend">
-            <div class="legend-item"><div class="legend-dot" style="background:var(--primary)"></div>Meus</div>
-            <div class="legend-item"><div class="legend-dot" style="background:#ca8a04"></div>Terceiros</div>
-        </div>` : ''}
+        ${legendHTML}
     </div>`;
 }
 
@@ -1042,6 +1271,14 @@ function attachEvents() {
         const input = document.getElementById('slidesInput');
         const slides = Math.max(1, parseInt(input.value) || 1);
         registerCase(slides, true);
+        setTimeout(() => { const i = document.getElementById('slidesInput'); if (i) { i.value = 1; i.select(); } }, 50);
+    });
+    document.getElementById('btnStartFrozen')?.addEventListener('click', startFrozen);
+    document.getElementById('btnStopFrozen')?.addEventListener('click', stopFrozen);
+    document.getElementById('btnCaseFrozen')?.addEventListener('click', () => {
+        const input = document.getElementById('slidesInput');
+        const slides = Math.max(1, parseInt(input.value) || 1);
+        registerCase(slides, false, true);
         setTimeout(() => { const i = document.getElementById('slidesInput'); if (i) { i.value = 1; i.select(); } }, 50);
     });
     document.getElementById('btnCase')?.addEventListener('click', () => {
@@ -1121,6 +1358,8 @@ auth.onAuthStateChanged(async user => {
         await initData();
         renderRoot();
         if (data.state === 'working' || data.state === 'paused') startTimer();
+        // Load history in background so speedometers are available on the Today view
+        if (!historyCache) loadHistory().then(() => renderRoot()).catch(() => {});
     } else {
         stopTimer();
         data = defaultData();

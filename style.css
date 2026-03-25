@@ -389,3 +389,60 @@ header .date { color: var(--text-muted); font-size: 0.85rem; text-transform: cap
 .chart-legend { display: flex; gap: 14px; margin-top: 10px; flex-wrap: wrap; }
 .legend-item { display: flex; align-items: center; gap: 5px; font-size: 0.72rem; color: var(--text-muted); }
 .legend-dot { width: 10px; height: 10px; border-radius: 2px; flex-shrink: 0; }
+
+/* ── Speedometers ── */
+.speedometers-wrap { padding: 18px 16px; }
+.speedometers-title { font-size: 0.75rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 12px; }
+.speedometers-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+@media (max-width: 560px) { .speedometers-grid { grid-template-columns: 1fr; } }
+.speedometer-card { background: var(--bg); border-radius: 10px; padding: 10px 8px 12px; text-align: center; }
+.speedometer-svg { width: 100%; display: flex; justify-content: center; }
+.speedometer-svg svg { width: 100%; max-width: 155px; }
+.speedometer-label { font-size: 0.68rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.06em; margin-top: 4px; }
+.speedometer-curr { font-size: 1rem; font-weight: 700; margin-top: 2px; font-variant-numeric: tabular-nums; }
+.speedometer-ref { font-size: 0.7rem; color: var(--text-muted); margin-top: 1px; }
+.speedometer-diff { font-size: 0.75rem; font-weight: 600; margin-top: 3px; }
+
+/* ── Pie chart ── */
+.pie-wrap { padding: 18px 16px; }
+.pie-title { font-size: 0.75rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 12px; }
+.pie-content { display: flex; align-items: center; gap: 20px; }
+.pie-svg { width: 110px; height: 110px; flex-shrink: 0; }
+.pie-legend { flex: 1; display: flex; flex-direction: column; gap: 14px; }
+.pie-legend-item { display: flex; align-items: center; gap: 10px; }
+.pie-dot-sq { width: 12px; height: 12px; border-radius: 3px; flex-shrink: 0; }
+.pie-legend-text { display: flex; flex-direction: column; gap: 1px; }
+.pie-legend-label { font-size: 0.68rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; }
+.pie-legend-val { font-size: 1.1rem; font-weight: 700; font-variant-numeric: tabular-nums; }
+.pie-legend-pct { font-size: 0.72rem; color: var(--text-muted); }
+
+/* ── Frozen section (congelação) ── */
+.frozen-widget {
+    display: flex; align-items: center; gap: 8px;
+    background: #083344; border: 1.5px solid #0891b2;
+    border-radius: 10px; padding: 8px 14px; margin-bottom: 10px;
+    font-size: 0.9rem; font-weight: 600; color: #67e8f9;
+    font-variant-numeric: tabular-nums;
+}
+.frozen-icon { font-size: 1.1rem; flex-shrink: 0; }
+.frozen-widget span:nth-child(2) { flex: 1; }
+.btn-stop-frozen {
+    background: none; border: none; color: #67e8f9; cursor: pointer;
+    font-size: 0.85rem; padding: 2px 6px; border-radius: 5px; line-height: 1;
+    transition: background 0.15s;
+}
+.btn-stop-frozen:hover { background: rgba(8,145,178,0.3); }
+.btn-frozen { background: #0e7490; color: white; }
+.btn-frozen:hover:not(:disabled) { background: #0c6277; }
+.btn-frozen-start { font-size: 0.85rem; }
+
+/* ── Frozen badge ── */
+.badge-frozen {
+    display: inline-block; font-size: 0.65rem; font-weight: 700;
+    background: #083344; color: #67e8f9; border-radius: 5px;
+    padding: 1px 6px; letter-spacing: 0.04em; flex-shrink: 0;
+}
+
+/* ── Chart stacked value ── */
+.chart-bar.frozen { background: #0891b2; }
+.chart-val-stack { display: flex; flex-direction: column; align-items: center; gap: 1px; font-size: 0.6rem; font-weight: 700; line-height: 1.1; }
