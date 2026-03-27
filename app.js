@@ -1309,7 +1309,7 @@ function renderPendencias() {
     const rowsHTML = items.length === 0
         ? `<div class="pend-empty">Nenhuma pendência cadastrada.</div>`
         : items.map((item, idx) => `
-            <div class="pend-row card">
+            <div class="pend-row">
                 <div class="pend-cell">
                     <div class="pend-cell-label">Paciente</div>
                     <input class="pend-input" type="text"
