@@ -486,37 +486,39 @@ header .date { color: var(--text-muted); font-size: 0.85rem; text-transform: cap
 .chart-val-stack { display: flex; flex-direction: column; align-items: center; gap: 1px; font-size: 0.6rem; font-weight: 700; line-height: 1.1; }
 
 /* ──────────── Pendências ──────────── */
+#app.pend-fullwidth { max-width: none; }
+
 .pendencias-wrap { display: flex; flex-direction: column; gap: 0; }
 
 .pend-col-headers {
     display: grid;
-    grid-template-columns: 1fr 1fr 2fr 36px;
-    gap: 10px;
-    padding: 6px 16px 6px 16px;
+    grid-template-columns: 1.2fr 1fr 2.5fr 140px 44px;
+    gap: 12px;
+    padding: 6px 18px;
     margin-bottom: 4px;
 }
 .pend-col-h {
-    font-size: 0.75rem;
+    font-size: 0.72rem;
     font-weight: 700;
     text-transform: uppercase;
     letter-spacing: 0.06em;
     color: var(--text-muted);
 }
-.pend-col-h-del { width: 36px; }
+.pend-col-h-del { width: 44px; }
 
 .pend-row.card {
     display: grid;
-    grid-template-columns: 1fr 1fr 2fr 36px;
-    gap: 10px;
-    align-items: start;
-    padding: 14px 16px;
+    grid-template-columns: 1.2fr 1fr 2.5fr 140px 44px;
+    gap: 12px;
+    align-items: center;
+    padding: 14px 18px;
     margin-bottom: 10px;
     border-radius: 12px;
 }
 
 .pend-cell { display: flex; flex-direction: column; gap: 5px; }
 .pend-cell-label {
-    font-size: 0.7rem;
+    font-size: 0.68rem;
     font-weight: 600;
     text-transform: uppercase;
     letter-spacing: 0.05em;
@@ -530,7 +532,7 @@ header .date { color: var(--text-muted); font-size: 0.85rem; text-transform: cap
     color: var(--text);
     font-size: 0.95rem;
     font-family: inherit;
-    padding: 8px 10px;
+    padding: 9px 12px;
     width: 100%;
     box-sizing: border-box;
     transition: border-color 0.15s;
@@ -541,46 +543,51 @@ header .date { color: var(--text-muted); font-size: 0.85rem; text-transform: cap
 }
 .pend-textarea {
     resize: vertical;
-    min-height: 60px;
-    line-height: 1.4;
+    min-height: 64px;
+    line-height: 1.45;
 }
 .pend-select {
     cursor: pointer;
     appearance: auto;
 }
 
+.pend-cell-date { justify-content: center; }
+.pend-date-val {
+    font-size: 0.82rem;
+    color: var(--text-muted);
+    font-variant-numeric: tabular-nums;
+    line-height: 1.4;
+}
+
 .btn-delete-pend {
     background: transparent;
     border: none;
     cursor: pointer;
-    color: var(--text-muted);
-    padding: 6px;
-    border-radius: 6px;
+    color: #64748b;
+    padding: 7px;
+    border-radius: 7px;
     display: flex;
     align-items: center;
     justify-content: center;
-    margin-top: 22px;
     transition: background 0.15s, color 0.15s;
+    align-self: center;
 }
 .btn-delete-pend:hover { background: #3f1111; color: var(--danger); }
 
 .pend-add-btn {
-    margin-top: 8px;
+    margin-top: 10px;
     align-self: flex-start;
 }
 
 .pend-empty {
     text-align: center;
-    padding: 48px 20px;
+    padding: 56px 20px;
     color: var(--text-muted);
     font-size: 0.95rem;
 }
 
 @media (max-width: 600px) {
     .pend-col-headers { display: none; }
-    .pend-row.card {
-        grid-template-columns: 1fr;
-        gap: 12px;
-    }
-    .btn-delete-pend { margin-top: 0; justify-content: flex-end; }
+    .pend-row.card { grid-template-columns: 1fr; gap: 12px; }
+    .btn-delete-pend { align-self: flex-end; }
 }

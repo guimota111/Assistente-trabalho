@@ -37,6 +37,13 @@ function ts(iso)    { return new Date(iso).getTime(); }
 function pad(n)     { return String(n).padStart(2, '0'); }
 function todayStr() { return new Date().toISOString().split('T')[0]; }
 function esc(str)   { return String(str||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function formatPendDate(iso) {
+    if (!iso) return '--';
+    const d = new Date(iso);
+    const time = d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+    if (d.toDateString() === new Date().toDateString()) return `Hoje, ${time}`;
+    return d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }) + `, ${time}`;
+}
 
 function formatDuration(ms) {
     if (!ms || ms < 0) ms = 0;
@@ -711,7 +718,7 @@ function renderRoot() {
             </div>
             ${currentView === 'today' ? `<div class="date">${date}</div>` : ''}
         </header>
-        <div id="app">${contentHTML}</div>
+        <div id="app"${currentView === 'pendencias' ? ' class="pend-fullwidth"' : ''}>${contentHTML}</div>
     </div>`;
 
     attachEvents();
@@ -1303,14 +1310,14 @@ function renderPendencias() {
         ? `<div class="pend-empty">Nenhuma pendência cadastrada.</div>`
         : items.map((item, idx) => `
             <div class="pend-row card">
-                <div class="pend-cell pend-cell-name">
+                <div class="pend-cell">
                     <div class="pend-cell-label">Paciente</div>
                     <input class="pend-input" type="text"
                         value="${esc(item.name)}"
                         data-pend-field="name" data-pend-idx="${idx}"
                         placeholder="Nome do paciente">
                 </div>
-                <div class="pend-cell pend-cell-status">
+                <div class="pend-cell">
                     <div class="pend-cell-label">Status</div>
                     <select class="pend-select" data-pend-field="status" data-pend-idx="${idx}">
                         ${statusOptions.map(opt =>
@@ -1319,13 +1326,17 @@ function renderPendencias() {
                         <option value="__new__">+ Novo status...</option>
                     </select>
                 </div>
-                <div class="pend-cell pend-cell-obs">
+                <div class="pend-cell">
                     <div class="pend-cell-label">Observações</div>
                     <textarea class="pend-textarea" data-pend-field="obs" data-pend-idx="${idx}"
                         placeholder="Observações...">${esc(item.obs)}</textarea>
                 </div>
-                <button class="btn-delete-pend" data-pend-del="${idx}" title="Remover">
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                <div class="pend-cell pend-cell-date">
+                    <div class="pend-cell-label">Última modificação</div>
+                    <div class="pend-date-val">${formatPendDate(item.updatedAt)}</div>
+                </div>
+                <button class="btn-delete-pend" data-pend-del="${idx}" title="Apagar pendência">
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4a1 1 0 011-1h4a1 1 0 011 1v2"/></svg>
                 </button>
             </div>`
         ).join('');
@@ -1336,6 +1347,7 @@ function renderPendencias() {
                 <div class="pend-col-h">Paciente</div>
                 <div class="pend-col-h">Status</div>
                 <div class="pend-col-h">Observações</div>
+                <div class="pend-col-h">Última modificação</div>
                 <div class="pend-col-h-del"></div>
             </div>
             <div id="pendList">${rowsHTML}</div>
@@ -1358,7 +1370,7 @@ function attachEvents() {
 
     document.getElementById('btnAddPend')?.addEventListener('click', async () => {
         const opts = pendenciasCache.statusOptions;
-        pendenciasCache.items.push({ name: '', status: opts[0] || 'Pendente', obs: '' });
+        pendenciasCache.items.push({ name: '', status: opts[0] || 'Pendente', obs: '', updatedAt: new Date().toISOString() });
         await savePendencias();
         renderRoot();
     });
@@ -1366,6 +1378,7 @@ function attachEvents() {
     document.querySelectorAll('.btn-delete-pend').forEach(btn => {
         btn.addEventListener('click', async () => {
             const idx = parseInt(btn.dataset.pendDel);
+            if (!confirm('Apagar esta pendência?')) return;
             pendenciasCache.items.splice(idx, 1);
             await savePendencias();
             renderRoot();
@@ -1376,7 +1389,11 @@ function attachEvents() {
         input.addEventListener('blur', async () => {
             const idx = parseInt(input.dataset.pendIdx);
             pendenciasCache.items[idx].name = input.value;
+            pendenciasCache.items[idx].updatedAt = new Date().toISOString();
             await savePendencias();
+            // update just the date cell without full re-render
+            const dateEl = input.closest('.pend-row')?.querySelector('.pend-date-val');
+            if (dateEl) dateEl.textContent = formatPendDate(pendenciasCache.items[idx].updatedAt);
         });
     });
 
@@ -1384,7 +1401,10 @@ function attachEvents() {
         ta.addEventListener('blur', async () => {
             const idx = parseInt(ta.dataset.pendIdx);
             pendenciasCache.items[idx].obs = ta.value;
+            pendenciasCache.items[idx].updatedAt = new Date().toISOString();
             await savePendencias();
+            const dateEl = ta.closest('.pend-row')?.querySelector('.pend-date-val');
+            if (dateEl) dateEl.textContent = formatPendDate(pendenciasCache.items[idx].updatedAt);
         });
     });
 
@@ -1400,13 +1420,13 @@ function attachEvents() {
                     }
                     pendenciasCache.items[idx].status = name;
                 } else {
-                    // revert to previous value
                     sel.value = pendenciasCache.items[idx].status;
                     return;
                 }
             } else {
                 pendenciasCache.items[idx].status = sel.value;
             }
+            pendenciasCache.items[idx].updatedAt = new Date().toISOString();
             await savePendencias();
             renderRoot();
         });
