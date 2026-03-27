@@ -29,12 +29,14 @@ let historyCache     = null;
 let menuOpen         = false;
 let statsView        = 'week';
 let statsSegment     = 'all';
+let pendenciasCache  = null;
 
 /* ──────────── Utilities ──────────── */
 function now()      { return Date.now(); }
 function ts(iso)    { return new Date(iso).getTime(); }
 function pad(n)     { return String(n).padStart(2, '0'); }
 function todayStr() { return new Date().toISOString().split('T')[0]; }
+function esc(str)   { return String(str||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 
 function formatDuration(ms) {
     if (!ms || ms < 0) ms = 0;
@@ -624,6 +626,10 @@ async function setView(view) {
         renderRoot();
         await loadHistory();
     }
+    if (view === 'pendencias' && !pendenciasCache) {
+        renderRoot();
+        await loadPendencias();
+    }
     renderRoot();
 }
 
@@ -650,6 +656,9 @@ function renderRoot() {
     } else if (currentView === 'stats') {
         contentHTML = renderStats();
         viewTitle = 'Estatísticas';
+    } else if (currentView === 'pendencias') {
+        contentHTML = renderPendencias();
+        viewTitle = 'Pendências';
     } else {
         contentHTML = renderToday();
         viewTitle = 'Controle de Laudos';
@@ -681,6 +690,10 @@ function renderRoot() {
             <button class="sidebar-nav-item${currentView === 'stats' ? ' active' : ''}" id="sideNavStats">
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="12" width="4" height="9"/><rect x="10" y="7" width="4" height="14"/><rect x="17" y="3" width="4" height="18"/></svg>
                 Estatísticas
+            </button>
+            <button class="sidebar-nav-item${currentView === 'pendencias' ? ' active' : ''}" id="sideNavPendencias">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg>
+                Pendências
             </button>
         </nav>
         <div class="sidebar-footer">
@@ -1254,6 +1267,82 @@ function renderStats() {
     </div>`;
 }
 
+/* ──────────── Pendências ──────────── */
+const DEFAULT_STATUS_OPTIONS = ['Pendente', 'Em andamento', 'Concluído'];
+
+async function loadPendencias() {
+    try {
+        const doc = await db.collection('users').doc(currentUser.uid)
+            .collection('pendencias').doc('list').get();
+        pendenciasCache = doc.exists
+            ? doc.data()
+            : { items: [], statusOptions: [...DEFAULT_STATUS_OPTIONS] };
+    } catch(e) {
+        console.error('loadPendencias', e);
+        pendenciasCache = { items: [], statusOptions: [...DEFAULT_STATUS_OPTIONS] };
+    }
+}
+
+async function savePendencias() {
+    if (!currentUser || !pendenciasCache) return;
+    try {
+        await db.collection('users').doc(currentUser.uid)
+            .collection('pendencias').doc('list').set(pendenciasCache);
+    } catch(e) {
+        console.error('savePendencias', e);
+    }
+}
+
+function renderPendencias() {
+    if (!pendenciasCache) {
+        return '<div style="text-align:center;padding:40px;color:var(--text-muted)">Carregando...</div>';
+    }
+    const { items, statusOptions } = pendenciasCache;
+
+    const rowsHTML = items.length === 0
+        ? `<div class="pend-empty">Nenhuma pendência cadastrada.</div>`
+        : items.map((item, idx) => `
+            <div class="pend-row card">
+                <div class="pend-cell pend-cell-name">
+                    <div class="pend-cell-label">Paciente</div>
+                    <input class="pend-input" type="text"
+                        value="${esc(item.name)}"
+                        data-pend-field="name" data-pend-idx="${idx}"
+                        placeholder="Nome do paciente">
+                </div>
+                <div class="pend-cell pend-cell-status">
+                    <div class="pend-cell-label">Status</div>
+                    <select class="pend-select" data-pend-field="status" data-pend-idx="${idx}">
+                        ${statusOptions.map(opt =>
+                            `<option value="${esc(opt)}"${item.status === opt ? ' selected' : ''}>${esc(opt)}</option>`
+                        ).join('')}
+                        <option value="__new__">+ Novo status...</option>
+                    </select>
+                </div>
+                <div class="pend-cell pend-cell-obs">
+                    <div class="pend-cell-label">Observações</div>
+                    <textarea class="pend-textarea" data-pend-field="obs" data-pend-idx="${idx}"
+                        placeholder="Observações...">${esc(item.obs)}</textarea>
+                </div>
+                <button class="btn-delete-pend" data-pend-del="${idx}" title="Remover">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                </button>
+            </div>`
+        ).join('');
+
+    return `
+        <div class="pendencias-wrap">
+            <div class="pend-col-headers">
+                <div class="pend-col-h">Paciente</div>
+                <div class="pend-col-h">Status</div>
+                <div class="pend-col-h">Observações</div>
+                <div class="pend-col-h-del"></div>
+            </div>
+            <div id="pendList">${rowsHTML}</div>
+            <button class="btn btn-primary pend-add-btn" id="btnAddPend">+ Adicionar Pendência</button>
+        </div>`;
+}
+
 /* ──────────── Events ──────────── */
 function attachEvents() {
     document.getElementById('btnSignIn')?.addEventListener('click', signIn);
@@ -1265,6 +1354,63 @@ function attachEvents() {
     document.getElementById('sideNavHistory')?.addEventListener('click', () => setView('history'));
     document.getElementById('sideNavRecords')?.addEventListener('click', () => setView('records'));
     document.getElementById('sideNavStats')?.addEventListener('click',   () => setView('stats'));
+    document.getElementById('sideNavPendencias')?.addEventListener('click', () => setView('pendencias'));
+
+    document.getElementById('btnAddPend')?.addEventListener('click', async () => {
+        const opts = pendenciasCache.statusOptions;
+        pendenciasCache.items.push({ name: '', status: opts[0] || 'Pendente', obs: '' });
+        await savePendencias();
+        renderRoot();
+    });
+
+    document.querySelectorAll('.btn-delete-pend').forEach(btn => {
+        btn.addEventListener('click', async () => {
+            const idx = parseInt(btn.dataset.pendDel);
+            pendenciasCache.items.splice(idx, 1);
+            await savePendencias();
+            renderRoot();
+        });
+    });
+
+    document.querySelectorAll('.pend-input').forEach(input => {
+        input.addEventListener('blur', async () => {
+            const idx = parseInt(input.dataset.pendIdx);
+            pendenciasCache.items[idx].name = input.value;
+            await savePendencias();
+        });
+    });
+
+    document.querySelectorAll('.pend-textarea').forEach(ta => {
+        ta.addEventListener('blur', async () => {
+            const idx = parseInt(ta.dataset.pendIdx);
+            pendenciasCache.items[idx].obs = ta.value;
+            await savePendencias();
+        });
+    });
+
+    document.querySelectorAll('.pend-select').forEach(sel => {
+        sel.addEventListener('change', async () => {
+            const idx = parseInt(sel.dataset.pendIdx);
+            if (sel.value === '__new__') {
+                const novo = prompt('Nome do novo status:');
+                if (novo && novo.trim()) {
+                    const name = novo.trim();
+                    if (!pendenciasCache.statusOptions.includes(name)) {
+                        pendenciasCache.statusOptions.push(name);
+                    }
+                    pendenciasCache.items[idx].status = name;
+                } else {
+                    // revert to previous value
+                    sel.value = pendenciasCache.items[idx].status;
+                    return;
+                }
+            } else {
+                pendenciasCache.items[idx].status = sel.value;
+            }
+            await savePendencias();
+            renderRoot();
+        });
+    });
 
     document.getElementById('btnStart')?.addEventListener('click', startWork);
     document.getElementById('btnCase3rd')?.addEventListener('click', () => {

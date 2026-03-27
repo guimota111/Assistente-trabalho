@@ -446,3 +446,103 @@ header .date { color: var(--text-muted); font-size: 0.85rem; text-transform: cap
 /* ── Chart stacked value ── */
 .chart-bar.frozen { background: #0891b2; }
 .chart-val-stack { display: flex; flex-direction: column; align-items: center; gap: 1px; font-size: 0.6rem; font-weight: 700; line-height: 1.1; }
+
+/* ──────────── Pendências ──────────── */
+.pendencias-wrap { display: flex; flex-direction: column; gap: 0; }
+
+.pend-col-headers {
+    display: grid;
+    grid-template-columns: 1fr 1fr 2fr 36px;
+    gap: 10px;
+    padding: 6px 16px 6px 16px;
+    margin-bottom: 4px;
+}
+.pend-col-h {
+    font-size: 0.75rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--text-muted);
+}
+.pend-col-h-del { width: 36px; }
+
+.pend-row.card {
+    display: grid;
+    grid-template-columns: 1fr 1fr 2fr 36px;
+    gap: 10px;
+    align-items: start;
+    padding: 14px 16px;
+    margin-bottom: 10px;
+    border-radius: 12px;
+}
+
+.pend-cell { display: flex; flex-direction: column; gap: 5px; }
+.pend-cell-label {
+    font-size: 0.7rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--text-muted);
+}
+
+.pend-input, .pend-select, .pend-textarea {
+    background: var(--card2);
+    border: 1.5px solid var(--border);
+    border-radius: 8px;
+    color: var(--text);
+    font-size: 0.95rem;
+    font-family: inherit;
+    padding: 8px 10px;
+    width: 100%;
+    box-sizing: border-box;
+    transition: border-color 0.15s;
+    outline: none;
+}
+.pend-input:focus, .pend-select:focus, .pend-textarea:focus {
+    border-color: var(--primary);
+}
+.pend-textarea {
+    resize: vertical;
+    min-height: 60px;
+    line-height: 1.4;
+}
+.pend-select {
+    cursor: pointer;
+    appearance: auto;
+}
+
+.btn-delete-pend {
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    color: var(--text-muted);
+    padding: 6px;
+    border-radius: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-top: 22px;
+    transition: background 0.15s, color 0.15s;
+}
+.btn-delete-pend:hover { background: #3f1111; color: var(--danger); }
+
+.pend-add-btn {
+    margin-top: 8px;
+    align-self: flex-start;
+}
+
+.pend-empty {
+    text-align: center;
+    padding: 48px 20px;
+    color: var(--text-muted);
+    font-size: 0.95rem;
+}
+
+@media (max-width: 600px) {
+    .pend-col-headers { display: none; }
+    .pend-row.card {
+        grid-template-columns: 1fr;
+        gap: 12px;
+    }
+    .btn-delete-pend { margin-top: 0; justify-content: flex-end; }
+}
