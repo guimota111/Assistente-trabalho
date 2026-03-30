@@ -368,7 +368,7 @@ function renderTimeline() {
     // Verifica se o ponto médio está dentro de uma pausa
     const inPause = mid => allPauses.some(p => ts(p.start) <= mid && mid < ts(p.end));
 
-    // Constrói segmentos coloridos: azul (trabalho) e roxo tracejado (pausa)
+    // Constrói segmentos coloridos guardando índice da pausa para tooltip
     const workGroups = [], pauseGroups = [];
     let curPts = null;
     let prevX = mapX(tStart), prevY = mapY(0);
@@ -376,33 +376,51 @@ function renderTimeline() {
     for (let i = 0; i < breakpoints.length - 1; i++) {
         const t1 = breakpoints[i], t2 = breakpoints[i + 1];
         const s1 = slidesAt(t1), s2 = slidesAt(t2);
-        const type = inPause((t1 + t2) / 2) ? 'pause' : 'work';
+        const mid = (t1 + t2) / 2;
+        const pidx = allPauses.findIndex(p => ts(p.start) <= mid && mid < ts(p.end));
+        const type = pidx >= 0 ? 'pause' : 'work';
         const x2 = mapX(t2), y2 = mapY(s2);
 
         if (!curPts || curPts.type !== type) {
-            if (curPts) (curPts.type === 'work' ? workGroups : pauseGroups).push(curPts.pts);
-            curPts = { type, pts: [[prevX, prevY]] };
+            if (curPts) (curPts.type === 'work' ? workGroups : pauseGroups).push(curPts);
+            curPts = { type, pts: [[prevX, prevY]], pauseIdx: pidx };
         }
         if (s1 !== s2) curPts.pts.push([x2, prevY]); // linha horizontal até a virada
         curPts.pts.push([x2, y2]);
         prevX = x2; prevY = y2;
     }
-    if (curPts) (curPts.type === 'work' ? workGroups : pauseGroups).push(curPts.pts);
+    if (curPts) (curPts.type === 'work' ? workGroups : pauseGroups).push(curPts);
 
-    const toPolyline = (groups, color, extra = '') =>
-        groups.map(pts =>
-            `<polyline points="${pts.map(([x, y]) => `${x.toFixed(1)},${y.toFixed(1)}`).join(' ')}"
-             fill="none" stroke="${color}" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"${extra}/>`
-        ).join('');
+    const workLines = workGroups.map(({ pts }) => {
+        const points = pts.map(([x, y]) => `${x.toFixed(1)},${y.toFixed(1)}`).join(' ');
+        return `<polyline points="${points}" fill="none" stroke="#3b82f6" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/>`;
+    }).join('');
 
-    const workLines  = toPolyline(workGroups,  '#3b82f6');
-    const pauseLines = toPolyline(pauseGroups, '#a78bfa', ' stroke-dasharray="5 3"');
+    const pauseLines = pauseGroups.map(({ pts, pauseIdx }) => {
+        const p = allPauses[pauseIdx];
+        const dur = p ? formatShort(ts(p.end) - ts(p.start)) : '';
+        const title = `Pausa ${pauseIdx + 1} — ${dur}`;
+        const points = pts.map(([x, y]) => `${x.toFixed(1)},${y.toFixed(1)}`).join(' ');
+        return `<g>
+            <polyline points="${points}" fill="none" stroke="#a78bfa" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round" stroke-dasharray="5 3"/>
+            <polyline points="${points}" fill="none" stroke="transparent" stroke-width="14" style="cursor:help">
+                <title>${esc(title)}</title>
+            </polyline>
+        </g>`;
+    }).join('');
 
-    // Pontos marcando o fim de cada caso
+    // Pontos marcando o fim de cada caso — com área de hit invisível para tooltip
     let cumS = 0;
     const dots = sortedCases.map(c => {
         cumS += c.slides;
-        return `<circle cx="${mapX(ts(c.endTime)).toFixed(1)}" cy="${mapY(cumS).toFixed(1)}" r="3.5" fill="#3b82f6" stroke="#0b1629" stroke-width="1.5"/>`;
+        const x = mapX(ts(c.endTime)).toFixed(1), y = mapY(cumS).toFixed(1);
+        const title = `Caso #${c.id} — ${c.slides} lâmina${c.slides !== 1 ? 's' : ''}`;
+        return `<g>
+            <circle cx="${x}" cy="${y}" r="3.5" fill="#3b82f6" stroke="#0b1629" stroke-width="1.5"/>
+            <circle cx="${x}" cy="${y}" r="10" fill="transparent" style="cursor:pointer">
+                <title>${esc(title)}</title>
+            </circle>
+        </g>`;
     }).join('');
 
     // Grade e labels do eixo Y
