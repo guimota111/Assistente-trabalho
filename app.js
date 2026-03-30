@@ -214,22 +214,22 @@ function getHistoryRefs() {
     if (!historyCache) return null;
     const days = Object.values(historyCache);
     if (days.length === 0) return null;
-    let totalMs = 0, totalCases = 0, monthMs = 0, monthCases = 0, bestAvg = Infinity;
+    let totalMs = 0, totalSlides = 0, monthMs = 0, monthSlides = 0, bestAvg = Infinity;
     const thisMonth = todayStr().slice(0, 7);
     for (const day of days) {
         const s = calcDayStats(day);
-        if (s.totalCases > 0 && s.avgPerCase > 0) {
-            totalMs    += s.totalCasesMs;
-            totalCases += s.totalCases;
-            if (s.avgPerCase < bestAvg) bestAvg = s.avgPerCase;
-            if (day.date.startsWith(thisMonth)) { monthMs += s.totalCasesMs; monthCases += s.totalCases; }
+        if (s.totalSlides > 0 && s.avgPerSlide > 0) {
+            totalMs     += s.totalCasesMs;
+            totalSlides += s.totalSlides;
+            if (s.avgPerSlide < bestAvg) bestAvg = s.avgPerSlide;
+            if (day.date.startsWith(thisMonth)) { monthMs += s.totalCasesMs; monthSlides += s.totalSlides; }
         }
     }
-    if (totalCases === 0) return null;
+    if (totalSlides === 0) return null;
     return {
         bestAvg:    bestAvg === Infinity ? 0 : bestAvg,
-        generalAvg: totalMs / totalCases,
-        monthlyAvg: monthCases > 0 ? monthMs / monthCases : 0,
+        generalAvg: totalMs / totalSlides,
+        monthlyAvg: monthSlides > 0 ? monthMs / monthSlides : 0,
     };
 }
 
@@ -258,7 +258,7 @@ function buildPieSegments(workMs, pauseMs) {
 function renderSpeedometerSVG(currentMs, refMs) {
     const R = 62, cx = 80, cy = 76;
     const arcLen = Math.PI * R;
-    const SMIN = 60000, SMAX = 1800000; // 1min – 30min scale
+    const SMIN = 10000, SMAX = 600000; // 10s – 10min por lâmina
     function norm(ms) {
         if (!ms || ms <= 0) return -1;
         return 1 - (Math.min(Math.max(ms, SMIN), SMAX) - SMIN) / (SMAX - SMIN);
@@ -281,21 +281,21 @@ function renderSpeedometerSVG(currentMs, refMs) {
         const a = Math.PI - cV * Math.PI;
         const nx = (cx + (R-10)*Math.cos(a)).toFixed(1), ny = (cy - (R-10)*Math.sin(a)).toFixed(1);
         needle = `<line x1="${cx}" y1="${cy}" x2="${nx}" y2="${ny}" stroke="white" stroke-width="2.5" stroke-linecap="round"/>
-        <circle cx="${cx}" cy="${cy}" r="5" fill="#1e293b" stroke="white" stroke-width="1.5"/>`;
+        <circle cx="${cx}" cy="${cy}" r="5" fill="#0f172a" stroke="white" stroke-width="1.5"/>`;
     }
     return `<svg viewBox="0 0 160 88" xmlns="http://www.w3.org/2000/svg">
-        <path d="${trackD}" fill="none" stroke="#1e293b" stroke-width="11" stroke-linecap="round"/>
+        <path d="${trackD}" fill="none" stroke="#334155" stroke-width="11" stroke-linecap="round"/>
         <path d="${trackD}" fill="none" stroke="${arcColor}" stroke-width="11" stroke-linecap="round"
               stroke-dasharray="${dashLen} ${arcLen.toFixed(1)}"/>
         ${refLine}${needle}
-        <text x="12" y="87" fill="#475569" font-size="9" font-family="system-ui,sans-serif">Lento</text>
-        <text x="119" y="87" fill="#475569" font-size="9" font-family="system-ui,sans-serif">Rápido</text>
+        <text x="12" y="87" fill="#94a3b8" font-size="9" font-family="system-ui,sans-serif">Lento</text>
+        <text x="119" y="87" fill="#94a3b8" font-size="9" font-family="system-ui,sans-serif">Rápido</text>
     </svg>`;
 }
 
 /* ──────────── Render speedometers ──────────── */
 function renderSpeedometers(s) {
-    if (s.avgPerCase <= 0) return '';
+    if (s.avgPerSlide <= 0) return '';
     if (!historyCache) {
         loadHistory().then(() => renderRoot()).catch(() => {});
         return '';
@@ -309,23 +309,23 @@ function renderSpeedometers(s) {
     ].filter(m => m.ref > 0);
     if (meters.length === 0) return '';
     const cards = meters.map(m => {
-        const svg = renderSpeedometerSVG(s.avgPerCase, m.ref);
-        const diffPct = Math.round(Math.abs(s.avgPerCase - m.ref) / m.ref * 100);
-        const diffHtml = s.avgPerCase < m.ref
+        const svg = renderSpeedometerSVG(s.avgPerSlide, m.ref);
+        const diffPct = Math.round(Math.abs(s.avgPerSlide - m.ref) / m.ref * 100);
+        const diffHtml = s.avgPerSlide < m.ref
             ? `<div class="speedometer-diff" style="color:var(--success)">↑ ${diffPct}% mais rápido</div>`
-            : s.avgPerCase > m.ref
+            : s.avgPerSlide > m.ref
             ? `<div class="speedometer-diff" style="color:var(--danger)">↓ ${diffPct}% mais lento</div>`
             : `<div class="speedometer-diff" style="color:var(--text-muted)">Igual</div>`;
         return `<div class="speedometer-card">
             <div class="speedometer-svg">${svg}</div>
             <div class="speedometer-label">${m.label}</div>
-            <div class="speedometer-curr">${formatShort(s.avgPerCase)}/caso</div>
+            <div class="speedometer-curr">${formatShort(s.avgPerSlide)}/lâmina</div>
             <div class="speedometer-ref">${m.icon} ref: ${formatShort(m.ref)}</div>
             ${diffHtml}
         </div>`;
     }).join('');
     return `<div class="card speedometers-wrap">
-        <div class="speedometers-title">Velocidade desta sessão</div>
+        <div class="speedometers-title">Velocidade por lâmina</div>
         <div class="speedometers-grid">${cards}</div>
     </div>`;
 }
@@ -770,55 +770,67 @@ function renderIdle() {
 
 function renderWorking(s) {
     return `
-    <div class="card status-card state-working">
-        <div class="state-badge">Trabalhando</div>
-        <div class="main-timer" id="mainTimer">${formatDuration(getTotalWorkingTime())}</div>
-        <div class="timer-label">Tempo trabalhado</div>
-        <div class="current-case-badge" id="currentCaseTimer">Caso atual: ${formatDuration(getCurrentCaseDuration())}</div>
-        <div class="register-area">
-            <label for="slidesInput">Lâminas:</label>
-            <input class="slides-input" type="number" id="slidesInput" min="1" value="1">
+    <div class="today-layout">
+        <div class="today-left">
+            <div class="card status-card state-working">
+                <div class="state-badge">Trabalhando</div>
+                <div class="main-timer" id="mainTimer">${formatDuration(getTotalWorkingTime())}</div>
+                <div class="timer-label">Tempo trabalhado</div>
+                <div class="current-case-badge" id="currentCaseTimer">Caso atual: ${formatDuration(getCurrentCaseDuration())}</div>
+                <div class="register-area">
+                    <label for="slidesInput">Lâminas:</label>
+                    <input class="slides-input" type="number" id="slidesInput" min="1" value="1">
+                </div>
+                ${data.frozenStart ? `
+                <div class="frozen-widget">
+                    <span class="frozen-icon">🧊</span>
+                    <span>Congelação — <span id="frozenTimer">${formatDuration(getCurrentFrozenDuration())}</span></span>
+                    <button class="btn-stop-frozen" id="btnStopFrozen" title="Cancelar timer de congelação">✕</button>
+                </div>` : ''}
+                <div class="register-area-btns">
+                    <button class="btn btn-success" id="btnCase">Registrar Caso</button>
+                    <button class="btn btn-outline" id="btnCase3rd" title="Registrar caso de segunda assinatura">+ Terceiro</button>
+                    ${data.frozenStart
+                        ? `<button class="btn btn-frozen" id="btnCaseFrozen">Registrar Congelação</button>`
+                        : `<button class="btn btn-outline btn-frozen-start" id="btnStartFrozen" title="Registrar chegada de congelação">🧊 Congelação</button>`}
+                </div>
+                <div class="actions">
+                    <button class="btn btn-pause" id="btnPause">Pausar</button>
+                    <button class="btn btn-danger" id="btnEnd">Encerrar Sessão</button>
+                </div>
+            </div>
         </div>
-        ${data.frozenStart ? `
-        <div class="frozen-widget">
-            <span class="frozen-icon">🧊</span>
-            <span>Congelação — <span id="frozenTimer">${formatDuration(getCurrentFrozenDuration())}</span></span>
-            <button class="btn-stop-frozen" id="btnStopFrozen" title="Cancelar timer de congelação">✕</button>
-        </div>` : ''}
-        <div class="register-area-btns">
-            <button class="btn btn-success" id="btnCase">Registrar Caso</button>
-            <button class="btn btn-outline" id="btnCase3rd" title="Registrar caso de segunda assinatura">+ Terceiro</button>
-            ${data.frozenStart
-                ? `<button class="btn btn-frozen" id="btnCaseFrozen">Registrar Congelação</button>`
-                : `<button class="btn btn-outline btn-frozen-start" id="btnStartFrozen" title="Registrar chegada de congelação">🧊 Congelação</button>`}
+        <div class="today-right">
+            ${renderStatsGrid(s)}
+            ${renderSpeedometers(s)}
+            ${renderPieChart(getTotalWorkingTime(), getTotalPauseTime())}
+            ${renderCasesList()}
         </div>
-        <div class="actions">
-            <button class="btn btn-pause" id="btnPause">Pausar</button>
-            <button class="btn btn-danger" id="btnEnd">Encerrar Sessão</button>
-        </div>
-    </div>
-    ${renderStatsGrid(s)}
-    ${renderSpeedometers(s)}
-    ${renderPieChart(getTotalWorkingTime(), getTotalPauseTime())}
-    ${renderCasesList()}`;
+    </div>`;
 }
 
 function renderPaused(s) {
     return `
-    <div class="card status-card state-paused">
-        <div class="state-badge">Em Pausa</div>
-        <div class="main-timer" id="mainTimer">${formatDuration(getTotalWorkingTime())}</div>
-        <div class="timer-label">Tempo trabalhado</div>
-        <div class="pause-info" id="pauseInfo">Em pausa: ${formatDuration(getCurrentPauseDuration())}</div>
-        <div class="actions">
-            <button class="btn btn-primary" id="btnResume">Retomar Trabalho</button>
-            <button class="btn btn-danger" id="btnEnd">Encerrar Sessão</button>
+    <div class="today-layout">
+        <div class="today-left">
+            <div class="card status-card state-paused">
+                <div class="state-badge">Em Pausa</div>
+                <div class="main-timer" id="mainTimer">${formatDuration(getTotalWorkingTime())}</div>
+                <div class="timer-label">Tempo trabalhado</div>
+                <div class="pause-info" id="pauseInfo">Em pausa: ${formatDuration(getCurrentPauseDuration())}</div>
+                <div class="actions">
+                    <button class="btn btn-primary" id="btnResume">Retomar Trabalho</button>
+                    <button class="btn btn-danger" id="btnEnd">Encerrar Sessão</button>
+                </div>
+            </div>
         </div>
-    </div>
-    ${renderStatsGrid(s)}
-    ${renderSpeedometers(s)}
-    ${renderPieChart(getTotalWorkingTime(), getTotalPauseTime())}
-    ${renderCasesList()}`;
+        <div class="today-right">
+            ${renderStatsGrid(s)}
+            ${renderSpeedometers(s)}
+            ${renderPieChart(getTotalWorkingTime(), getTotalPauseTime())}
+            ${renderCasesList()}
+        </div>
+    </div>`;
 }
 
 function renderEnded(s) {

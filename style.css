@@ -95,12 +95,23 @@ body {
         width: calc(100% - var(--sidebar-width));
         padding: 32px 48px 64px;
     }
-    #app {
-        max-width: 860px;
-        margin: 0 auto;
-    }
 }
 @media (max-width: 600px) { .container { padding: 16px 12px 48px; } }
+
+/* ── Today 2-column layout ── */
+.today-layout { display: flex; flex-direction: column; gap: 14px; }
+@media (min-width: 900px) {
+    .today-layout {
+        display: grid;
+        grid-template-columns: 360px 1fr;
+        gap: 20px;
+        align-items: start;
+    }
+    .today-left {
+        position: sticky;
+        top: 20px;
+    }
+}
 
 /* ── User bar ── */
 .user-bar { display: flex; align-items: center; gap: 8px; justify-content: flex-end; margin-bottom: 10px; }
@@ -434,11 +445,11 @@ header .date { color: var(--text-muted); font-size: 0.85rem; text-transform: cap
 .speedometers-title { font-size: 0.75rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 12px; }
 .speedometers-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
 @media (max-width: 560px) { .speedometers-grid { grid-template-columns: 1fr; } }
-.speedometer-card { background: var(--bg); border-radius: 10px; padding: 10px 8px 12px; text-align: center; }
+.speedometer-card { background: #0b1629; border: 1px solid var(--border); border-radius: 10px; padding: 10px 8px 12px; text-align: center; }
 .speedometer-svg { width: 100%; display: flex; justify-content: center; }
 .speedometer-svg svg { width: 100%; max-width: 155px; }
 .speedometer-label { font-size: 0.68rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.06em; margin-top: 4px; }
-.speedometer-curr { font-size: 1rem; font-weight: 700; margin-top: 2px; font-variant-numeric: tabular-nums; }
+.speedometer-curr { font-size: 1rem; font-weight: 700; margin-top: 2px; font-variant-numeric: tabular-nums; color: var(--text); }
 .speedometer-ref { font-size: 0.7rem; color: var(--text-muted); margin-top: 1px; }
 .speedometer-diff { font-size: 0.75rem; font-weight: 600; margin-top: 3px; }
 
