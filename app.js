@@ -264,8 +264,11 @@ function renderSpeedometerSVG(currentMs, refMs) {
         return 1 - (Math.min(Math.max(ms, SMIN), SMAX) - SMIN) / (SMAX - SMIN);
     }
     const cV = norm(currentMs), rV = norm(refMs);
+    // Arco semi-circular: começa na esquerda (Lento) e vai para direita (Rápido)
     const trackD = `M ${cx-R} ${cy} A ${R} ${R} 0 0 0 ${cx+R} ${cy}`;
-    const dashLen = cV >= 0 ? (cV * arcLen).toFixed(1) : '0';
+    // Preenche da esquerda até a posição da agulha; o restante mostra o track
+    const dashFill = cV >= 0 ? (cV * arcLen).toFixed(1) : '0';
+    const dashGap  = (arcLen * 2).toFixed(1); // gap maior que arcLen para não repetir
     let arcColor = '#3b82f6';
     if (refMs > 0 && currentMs > 0) arcColor = currentMs <= refMs ? '#22c55e' : '#ef4444';
 
@@ -284,9 +287,9 @@ function renderSpeedometerSVG(currentMs, refMs) {
         <circle cx="${cx}" cy="${cy}" r="5" fill="#0f172a" stroke="white" stroke-width="1.5"/>`;
     }
     return `<svg viewBox="0 0 160 88" xmlns="http://www.w3.org/2000/svg">
-        <path d="${trackD}" fill="none" stroke="#334155" stroke-width="11" stroke-linecap="round"/>
+        <path d="${trackD}" fill="none" stroke="#3d5a80" stroke-width="11" stroke-linecap="round"/>
         <path d="${trackD}" fill="none" stroke="${arcColor}" stroke-width="11" stroke-linecap="round"
-              stroke-dasharray="${dashLen} ${arcLen.toFixed(1)}"/>
+              stroke-dasharray="${dashFill} ${dashGap}"/>
         ${refLine}${needle}
         <text x="12" y="87" fill="#94a3b8" font-size="9" font-family="system-ui,sans-serif">Lento</text>
         <text x="119" y="87" fill="#94a3b8" font-size="9" font-family="system-ui,sans-serif">Rápido</text>
@@ -857,13 +860,16 @@ function renderEnded(s) {
 
 function renderStatsGrid(s) {
     return `
-    <div class="stats-grid">
-        <div class="stat-item"><div class="stat-value" id="statWork">${formatDuration(s.totalWorkMs)}</div><div class="stat-label">Trabalhado</div></div>
-        <div class="stat-item"><div class="stat-value" id="statPause">${formatDuration(s.totalPauseMs)}</div><div class="stat-label">Em Pausa</div></div>
-        <div class="stat-item"><div class="stat-value">${s.totalCases}</div><div class="stat-label">Casos</div></div>
-        <div class="stat-item"><div class="stat-value">${s.totalSlides}</div><div class="stat-label">Lâminas</div></div>
-        <div class="stat-item"><div class="stat-value" id="statAvgCase">${s.totalCases > 0 ? formatShort(s.avgPerCase) : '--'}</div><div class="stat-label">Média/Caso</div></div>
-        <div class="stat-item"><div class="stat-value" id="statAvgSlide">${s.totalSlides > 0 ? formatShort(s.avgPerSlide) : '--'}</div><div class="stat-label">Média/Lâmina</div></div>
+    <div class="card stats-card">
+        <div class="stats-card-title">Estatísticas da sessão</div>
+        <div class="stats-grid">
+            <div class="stat-item"><div class="stat-value" id="statWork">${formatDuration(s.totalWorkMs)}</div><div class="stat-label">Trabalhado</div></div>
+            <div class="stat-item"><div class="stat-value" id="statPause">${formatDuration(s.totalPauseMs)}</div><div class="stat-label">Em Pausa</div></div>
+            <div class="stat-item"><div class="stat-value">${s.totalCases}</div><div class="stat-label">Casos</div></div>
+            <div class="stat-item"><div class="stat-value">${s.totalSlides}</div><div class="stat-label">Lâminas</div></div>
+            <div class="stat-item"><div class="stat-value" id="statAvgCase">${s.totalCases > 0 ? formatShort(s.avgPerCase) : '--'}</div><div class="stat-label">Média/Caso</div></div>
+            <div class="stat-item"><div class="stat-value" id="statAvgSlide">${s.totalSlides > 0 ? formatShort(s.avgPerSlide) : '--'}</div><div class="stat-label">Média/Lâmina</div></div>
+        </div>
     </div>`;
 }
 

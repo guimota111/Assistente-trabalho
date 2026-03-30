@@ -219,7 +219,9 @@ header .date { color: var(--text-muted); margin-top: 4px; font-size: 0.9rem; tex
 .actions { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; }
 
 /* ── Stats grid ── */
-.stats-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 14px; }
+.stats-card { padding: 18px 16px; }
+.stats-card-title { font-size: 0.75rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 12px; }
+.stats-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
 @media (max-width: 500px) { .stats-grid { grid-template-columns: repeat(2, 1fr); } }
 .stat-item { background: var(--bg); border-radius: 10px; padding: 14px 12px; text-align: center; }
 .stat-value { font-size: 1.35rem; font-weight: 700; line-height: 1; margin-bottom: 5px; font-variant-numeric: tabular-nums; }
