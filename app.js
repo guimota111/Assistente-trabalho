@@ -333,6 +333,125 @@ function renderSpeedometers(s) {
     </div>`;
 }
 
+/* ──────────── Timeline chart ──────────── */
+function renderTimeline() {
+    if (!data.workStartTime || data.cases.length === 0) return '';
+
+    const W = 560, H = 170;
+    const ml = 40, mr = 16, mt = 14, mb = 28;
+    const pw = W - ml - mr, ph = H - mt - mb;
+
+    const tStart = ts(data.workStartTime);
+    const tEnd   = data.dayEndTime ? ts(data.dayEndTime) : now();
+    const tRange = tEnd - tStart;
+    if (tRange <= 0) return '';
+
+    const totalSlides = data.cases.reduce((a, c) => a + c.slides, 0);
+    if (totalSlides === 0) return '';
+
+    const mapX = t => ml + ((t - tStart) / tRange) * pw;
+    const mapY = s => mt + ph * (1 - s / totalSlides);
+
+    const allPauses = [...(data.pauses || [])];
+    if (data.currentPauseStart) allPauses.push({ start: data.currentPauseStart, end: new Date().toISOString() });
+
+    const sortedCases = [...data.cases].sort((a, b) => ts(a.endTime) - ts(b.endTime));
+
+    // Todos os pontos de quebra: início, fim de cada caso, início/fim de cada pausa, tEnd
+    const bpSet = new Set([tStart, tEnd]);
+    for (const c of sortedCases) bpSet.add(ts(c.endTime));
+    for (const p of allPauses) { bpSet.add(ts(p.start)); bpSet.add(Math.min(ts(p.end), tEnd)); }
+    const breakpoints = [...bpSet].sort((a, b) => a - b);
+
+    // Lâminas acumuladas até o tempo t (inclusive)
+    const slidesAt = t => sortedCases.filter(c => ts(c.endTime) <= t).reduce((a, c) => a + c.slides, 0);
+    // Verifica se o ponto médio está dentro de uma pausa
+    const inPause = mid => allPauses.some(p => ts(p.start) <= mid && mid < ts(p.end));
+
+    // Constrói segmentos coloridos: azul (trabalho) e roxo tracejado (pausa)
+    const workGroups = [], pauseGroups = [];
+    let curPts = null;
+    let prevX = mapX(tStart), prevY = mapY(0);
+
+    for (let i = 0; i < breakpoints.length - 1; i++) {
+        const t1 = breakpoints[i], t2 = breakpoints[i + 1];
+        const s1 = slidesAt(t1), s2 = slidesAt(t2);
+        const type = inPause((t1 + t2) / 2) ? 'pause' : 'work';
+        const x2 = mapX(t2), y2 = mapY(s2);
+
+        if (!curPts || curPts.type !== type) {
+            if (curPts) (curPts.type === 'work' ? workGroups : pauseGroups).push(curPts.pts);
+            curPts = { type, pts: [[prevX, prevY]] };
+        }
+        if (s1 !== s2) curPts.pts.push([x2, prevY]); // linha horizontal até a virada
+        curPts.pts.push([x2, y2]);
+        prevX = x2; prevY = y2;
+    }
+    if (curPts) (curPts.type === 'work' ? workGroups : pauseGroups).push(curPts.pts);
+
+    const toPolyline = (groups, color, extra = '') =>
+        groups.map(pts =>
+            `<polyline points="${pts.map(([x, y]) => `${x.toFixed(1)},${y.toFixed(1)}`).join(' ')}"
+             fill="none" stroke="${color}" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"${extra}/>`
+        ).join('');
+
+    const workLines  = toPolyline(workGroups,  '#3b82f6');
+    const pauseLines = toPolyline(pauseGroups, '#a78bfa', ' stroke-dasharray="5 3"');
+
+    // Pontos marcando o fim de cada caso
+    let cumS = 0;
+    const dots = sortedCases.map(c => {
+        cumS += c.slides;
+        return `<circle cx="${mapX(ts(c.endTime)).toFixed(1)}" cy="${mapY(cumS).toFixed(1)}" r="3.5" fill="#3b82f6" stroke="#0b1629" stroke-width="1.5"/>`;
+    }).join('');
+
+    // Grade e labels do eixo Y
+    const yStep = Math.max(1, Math.ceil(totalSlides / 5));
+    let yLabels = '', yGrid = '';
+    for (let s = 0; s <= totalSlides; s += yStep) {
+        const y = mapY(s).toFixed(1);
+        yLabels += `<text x="${ml - 5}" y="${(+y + 3).toFixed(1)}" fill="#64748b" font-size="9" font-family="system-ui,sans-serif" text-anchor="end">${s}</text>`;
+        yGrid   += `<line x1="${ml}" y1="${y}" x2="${ml + pw}" y2="${y}" stroke="#1e293b" stroke-width="1"/>`;
+    }
+    if (totalSlides % yStep !== 0) {
+        const y = mapY(totalSlides).toFixed(1);
+        yLabels += `<text x="${ml - 5}" y="${(+y + 3).toFixed(1)}" fill="#64748b" font-size="9" font-family="system-ui,sans-serif" text-anchor="end">${totalSlides}</text>`;
+        yGrid   += `<line x1="${ml}" y1="${y}" x2="${ml + pw}" y2="${y}" stroke="#1e293b" stroke-width="1"/>`;
+    }
+
+    // Labels do eixo X (horário)
+    let xLabels = '';
+    for (let i = 0; i <= 4; i++) {
+        const t = tStart + (tRange / 4) * i;
+        const x = mapX(t).toFixed(1);
+        const label = new Date(t).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+        const anchor = i === 0 ? 'start' : i === 4 ? 'end' : 'middle';
+        xLabels += `<text x="${x}" y="${H - 4}" fill="#64748b" font-size="9" font-family="system-ui,sans-serif" text-anchor="${anchor}">${label}</text>`;
+    }
+
+    const legend = allPauses.length > 0
+        ? `<div class="timeline-legend">
+             <span class="tl-legend-item"><span class="tl-dot" style="background:#3b82f6"></span>Trabalhando</span>
+             <span class="tl-legend-item"><span class="tl-dot" style="background:#a78bfa"></span>Pausado</span>
+           </div>`
+        : '';
+
+    return `<div class="card timeline-card">
+        <div class="timeline-title">Linha do tempo — lâminas acumuladas</div>
+        <svg viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg" style="width:100%;display:block">
+            ${yGrid}
+            ${workLines}
+            ${pauseLines}
+            ${dots}
+            ${yLabels}
+            ${xLabels}
+            <line x1="${ml}" y1="${mt}" x2="${ml}" y2="${mt + ph}" stroke="#334155" stroke-width="1"/>
+            <line x1="${ml}" y1="${mt + ph}" x2="${ml + pw}" y2="${mt + ph}" stroke="#334155" stroke-width="1"/>
+        </svg>
+        ${legend}
+    </div>`;
+}
+
 /* ──────────── Render pie chart ──────────── */
 function renderPieChart(workMs, pauseMs) {
     const total = workMs + pauseMs;
@@ -806,6 +925,7 @@ function renderWorking(s) {
         <div class="today-right">
             ${renderStatsGrid(s)}
             ${renderSpeedometers(s)}
+            ${renderTimeline()}
             ${renderPieChart(getTotalWorkingTime(), getTotalPauseTime())}
             ${renderCasesList()}
         </div>
@@ -830,6 +950,7 @@ function renderPaused(s) {
         <div class="today-right">
             ${renderStatsGrid(s)}
             ${renderSpeedometers(s)}
+            ${renderTimeline()}
             ${renderPieChart(getTotalWorkingTime(), getTotalPauseTime())}
             ${renderCasesList()}
         </div>
@@ -855,6 +976,7 @@ function renderEnded(s) {
             <button class="btn btn-outline" id="btnNewDay">Iniciar Nova Sessão</button>
         </div>
     </div>
+    ${renderTimeline()}
     ${renderCasesList()}`;
 }
 
