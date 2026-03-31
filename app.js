@@ -29,6 +29,7 @@ let historyCache     = null;
 let menuOpen         = false;
 let statsView        = 'week';
 let statsSegment     = 'all';
+let statsMetric      = 'cases';
 let pendenciasCache    = null;
 let calendarioCache    = null;
 let calViewMonth       = null; // 'YYYY-MM'
@@ -1317,12 +1318,16 @@ function renderStats() {
     const dayStats = filtered.map(d => ({ date: d.date, ...calcDayStats(d) }));
 
     let totalCases = 0, totalSlides = 0, totalCasesMs = 0, totalWorkMs = 0;
-    let totalOwn = 0, totalThird = 0, totalFrozen = 0;
+    let totalOwnC = 0, totalThirdC = 0, totalFrozenC = 0;
+    let totalOwnS = 0, totalThirdS = 0, totalFrozenS = 0;
     for (const d of dayStats) {
-        totalOwn    += d.ownTotalCases;
-        totalThird  += d.totalCases - d.ownTotalCases;
-        totalFrozen += d.frozenTotalCases;
-        totalWorkMs += d.workMs;
+        totalOwnC    += d.ownTotalCases;
+        totalThirdC  += d.totalCases - d.ownTotalCases;
+        totalFrozenC += d.frozenTotalCases;
+        totalOwnS    += d.ownTotalSlides;
+        totalThirdS  += d.totalSlides - d.ownTotalSlides;
+        totalFrozenS += d.frozenTotalSlides;
+        totalWorkMs  += d.workMs;
         if (statsSegment === 'own') {
             totalCases += d.ownTotalCases; totalSlides += d.ownTotalSlides; totalCasesMs += d.ownCasesMs;
         } else if (statsSegment === 'third') {
@@ -1344,6 +1349,12 @@ function renderStats() {
     // helper: get value for a found dayStats entry based on current segment
     function segVal(f) {
         if (!f) return 0;
+        if (statsMetric === 'slides') {
+            if (statsSegment === 'own')    return f.ownTotalSlides;
+            if (statsSegment === 'third')  return f.totalSlides - f.ownTotalSlides;
+            if (statsSegment === 'frozen') return f.frozenTotalSlides;
+            return f.totalSlides;
+        }
         if (statsSegment === 'own')    return f.ownTotalCases;
         if (statsSegment === 'third')  return f.totalCases - f.ownTotalCases;
         if (statsSegment === 'frozen') return f.frozenTotalCases;
@@ -1357,7 +1368,10 @@ function renderStats() {
             const ds = d.toISOString().split('T')[0];
             const f = dayStats.find(x => x.date === ds);
             const lbl = d.toLocaleDateString('pt-BR', { weekday: 'short' }).replace('.','');
-            chartItems.push({ lbl, val: segVal(f), own: f ? f.ownTotalCases : 0, third: f ? f.totalCases - f.ownTotalCases : 0, frozen: f ? f.frozenTotalCases : 0 });
+            const ownV = f ? (statsMetric === 'slides' ? f.ownTotalSlides : f.ownTotalCases) : 0;
+            const thirdV = f ? (statsMetric === 'slides' ? f.totalSlides - f.ownTotalSlides : f.totalCases - f.ownTotalCases) : 0;
+            const frozenV = f ? (statsMetric === 'slides' ? f.frozenTotalSlides : f.frozenTotalCases) : 0;
+            chartItems.push({ lbl, val: segVal(f), own: ownV, third: thirdV, frozen: frozenV });
         }
     } else if (statsView === 'month') {
         const year = now2.getFullYear(), month = now2.getMonth();
@@ -1367,16 +1381,19 @@ function renderStats() {
             const f = dayStats.find(x => x.date === ds);
             // Only label every 5th day to avoid overcrowding
             const lbl = (i === 1 || i % 5 === 0) ? String(i) : '';
-            chartItems.push({ lbl, val: segVal(f), own: f ? f.ownTotalCases : 0, third: f ? f.totalCases - f.ownTotalCases : 0, frozen: f ? f.frozenTotalCases : 0 });
+            const ownV = f ? (statsMetric === 'slides' ? f.ownTotalSlides : f.ownTotalCases) : 0;
+            const thirdV = f ? (statsMetric === 'slides' ? f.totalSlides - f.ownTotalSlides : f.totalCases - f.ownTotalCases) : 0;
+            const frozenV = f ? (statsMetric === 'slides' ? f.frozenTotalSlides : f.frozenTotalCases) : 0;
+            chartItems.push({ lbl, val: segVal(f), own: ownV, third: thirdV, frozen: frozenV });
         }
     } else {
         const mMap = {};
         for (const d of dayStats) {
             const mk = d.date.slice(0, 7);
             if (!mMap[mk]) mMap[mk] = { own: 0, third: 0, frozen: 0 };
-            mMap[mk].own    += d.ownTotalCases;
-            mMap[mk].third  += d.totalCases - d.ownTotalCases;
-            mMap[mk].frozen += d.frozenTotalCases;
+            mMap[mk].own    += statsMetric === 'slides' ? d.ownTotalSlides : d.ownTotalCases;
+            mMap[mk].third  += statsMetric === 'slides' ? d.totalSlides - d.ownTotalSlides : d.totalCases - d.ownTotalCases;
+            mMap[mk].frozen += statsMetric === 'slides' ? d.frozenTotalSlides : d.frozenTotalCases;
         }
         for (const [mk, v] of Object.entries(mMap).sort()) {
             const [y, m] = mk.split('-');
@@ -1426,26 +1443,33 @@ function renderStats() {
         ? `<button class="freeze-toggle-btn${excludeFreezeDays ? ' active' : ''}" id="btnToggleFreeze" title="${excludeFreezeDays ? 'Dias de plantão excluídos. Clique para incluir.' : 'Clique para excluir dias de plantão das médias.'}">${excludeFreezeDays ? '❄ Com plantões' : '❄ Sem plantões'}</button>`
         : '';
 
+    const metricToggleHTML = `
+        <div class="stats-period-tabs">
+            <button class="period-btn${statsMetric === 'cases' ? ' active' : ''}" data-metric="cases">Por Casos</button>
+            <button class="period-btn${statsMetric === 'slides' ? ' active' : ''}" data-metric="slides">Por Lâminas</button>
+        </div>`;
+
     return `
     <div class="stats-period-tabs-row">
-        <div class="stats-period-tabs">${periodTabs}</div>
+        <div class="stats-period-tabs" style="margin-right:auto">${periodTabs}</div>
+        ${metricToggleHTML}
         ${statsFreezeBtnHTML}
     </div>
     <div class="stats-segment-row">
         <div class="segment-chip${statsSegment === 'all'    ? ' active' : ''}" data-segment="all">
-            <div class="sc-val">${totalOwn + totalThird}</div>
-            <div class="sc-lbl">Todos os casos</div>
+            <div class="sc-val">${statsMetric === 'slides' ? totalOwnS + totalThirdS : totalOwnC + totalThirdC}</div>
+            <div class="sc-lbl">Todos ${statsMetric === 'slides' ? 'as Lâminas' : 'os Casos'}</div>
         </div>
         <div class="segment-chip${statsSegment === 'own'    ? ' active' : ''}" data-segment="own">
-            <div class="sc-val">${totalOwn}</div>
-            <div class="sc-lbl">Meus casos</div>
+            <div class="sc-val">${statsMetric === 'slides' ? totalOwnS : totalOwnC}</div>
+            <div class="sc-lbl">Minhas ${statsMetric === 'slides' ? 'Lâminas' : 'Casos'}</div>
         </div>
         <div class="segment-chip${statsSegment === 'third'  ? ' active' : ''}" data-segment="third">
-            <div class="sc-val">${totalThird}</div>
+            <div class="sc-val">${statsMetric === 'slides' ? totalThirdS : totalThirdC}</div>
             <div class="sc-lbl">Terceiros</div>
         </div>
         <div class="segment-chip${statsSegment === 'frozen' ? ' active' : ''}" data-segment="frozen">
-            <div class="sc-val">❄ ${totalFrozen}</div>
+            <div class="sc-val">❄ ${statsMetric === 'slides' ? totalFrozenS : totalFrozenC}</div>
             <div class="sc-lbl">Congelações</div>
         </div>
     </div>
@@ -1806,6 +1830,9 @@ function attachEvents() {
 
     document.querySelectorAll('.period-btn[data-period]').forEach(btn => {
         btn.addEventListener('click', () => { statsView = btn.dataset.period; renderRoot(); });
+    });
+    document.querySelectorAll('.period-btn[data-metric]').forEach(btn => {
+        btn.addEventListener('click', () => { statsMetric = btn.dataset.metric; renderRoot(); });
     });
     document.querySelectorAll('.segment-chip[data-segment]').forEach(chip => {
         chip.addEventListener('click', () => { statsSegment = chip.dataset.segment; renderRoot(); });
