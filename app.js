@@ -45,7 +45,7 @@ function defaultCongDoc() {
 
 function defaultPeca(idx) {
     const letter = String.fromCharCode(65 + idx);
-    return { letter, nome: '', macroscopia: '', laminas: 1, tudoIncluido: true,
+    return { letter, nome: '', macroscopia: '', blocos: 1, fragmentos: 2, tudoIncluido: true,
              cassetes: [{ inicio: letter + '1', fim: '', descricao: '' }], resultado: '' };
 }
 
@@ -1898,7 +1898,7 @@ function attachEvents() {
 /* ──────────── Congelação: build output text ──────────── */
 function buildCongText() {
     const d = congDoc;
-    const hospitalNames = { 'HAC': 'Hospital Anchieta Brasília', 'HOBRA': 'Hospital Brasília Águas Claras' };
+    const hospitalNames = { 'HAC': 'Hospital Brasília Águas Claras', 'HOBRA': 'Hospital Brasília Lago Sul' };
     const hospitalLabel = hospitalNames[d.hospital] || d.hospital || '[Hospital]';
     const today = new Date();
     const months = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
@@ -1915,7 +1915,7 @@ function buildCongText() {
     for (const p of d.pecas) {
         lines.push('');
         const inc = p.tudoIncluido ? 'Todo material foi enviado para exame histológico' : 'Material parcialmente enviado para exame histológico';
-        const cassetesStr = ` ${inc} - ${p.cassetes.length}B/${(p.laminas||1)*2}F.`;
+        const cassetesStr = ` ${inc} - ${p.blocos||1}B/${p.fragmentos||2}F.`;
         lines.push(`${p.letter}) ${p.nome || '[Nome da Peça]'}: ${(p.macroscopia||'').trim()}${cassetesStr}`);
         for (const c of p.cassetes) {
             const faixa = c.fim && c.fim.trim() ? `${c.inicio} a ${c.fim.trim()}` : c.inicio;
@@ -1934,7 +1934,7 @@ function buildCongText() {
     lines.push(dateStr);
     lines.push('');
     lines.push('___________________________________________');
-    lines.push(d.patologista ? `Dra./Dr. ${d.patologista}` : '[Patologista]');
+    lines.push(d.patologista ? `Dr(a). ${d.patologista}` : '[Patologista]');
     return lines.join('\n');
 }
 
@@ -1968,8 +1968,12 @@ function renderCongelacao() {
             <textarea class="cong-textarea" placeholder="Descreva a macroscopia da peça..." data-peca="${pi}" id="congMacro${pi}">${esc(p.macroscopia)}</textarea>
             <div class="cong-inline-row">
                 <div class="cong-field-group">
-                    <label class="cong-label">Lâminas realizadas</label>
-                    <input class="cong-input cong-laminas" type="number" min="1" value="${p.laminas}" data-peca="${pi}" id="congLaminas${pi}">
+                    <label class="cong-label">Blocos (B)</label>
+                    <input class="cong-input cong-blocos" type="number" min="1" value="${p.blocos}" data-peca="${pi}" id="congBlocos${pi}">
+                </div>
+                <div class="cong-field-group">
+                    <label class="cong-label">Fragmentos (F)</label>
+                    <input class="cong-input cong-fragmentos" type="number" min="1" value="${p.fragmentos}" data-peca="${pi}" id="congFragmentos${pi}">
                 </div>
                 <div class="cong-field-group">
                     <label class="cong-label">Inclusão</label>
@@ -2009,8 +2013,8 @@ function renderCongelacao() {
                     <label class="cong-label" for="congHospital">Hospital</label>
                     <select class="cong-select" id="congHospital">
                         <option value="">Selecione...</option>
-                        <option value="HAC" ${d.hospital === 'HAC' ? 'selected' : ''}>HAC — Hospital Anchieta</option>
-                        <option value="HOBRA" ${d.hospital === 'HOBRA' ? 'selected' : ''}>HOBRA — Hospital Brasília Águas Claras</option>
+                        <option value="HAC" ${d.hospital === 'HAC' ? 'selected' : ''}>HAC — Hospital Brasília Águas Claras</option>
+                        <option value="HOBRA" ${d.hospital === 'HOBRA' ? 'selected' : ''}>HOBRA — Hospital Brasília Lago Sul</option>
                     </select>
                 </div>
                 <div class="cong-field">
@@ -2104,7 +2108,8 @@ function attachCongEvents() {
             updateCongPreview();
         });
     });
-    document.querySelectorAll('.cong-laminas').forEach(inp => inp.addEventListener('input', e => { congDoc.pecas[parseInt(e.target.dataset.peca)].laminas = Math.max(1, parseInt(e.target.value)||1); updateCongPreview(); }));
+    document.querySelectorAll('.cong-blocos').forEach(inp => inp.addEventListener('input', e => { congDoc.pecas[parseInt(e.target.dataset.peca)].blocos = Math.max(1, parseInt(e.target.value)||1); updateCongPreview(); }));
+    document.querySelectorAll('.cong-fragmentos').forEach(inp => inp.addEventListener('input', e => { congDoc.pecas[parseInt(e.target.dataset.peca)].fragmentos = Math.max(1, parseInt(e.target.value)||1); updateCongPreview(); }));
     document.querySelectorAll('input[data-field="tudoIncluido"]').forEach(chk => {
         chk.addEventListener('change', e => {
             const pi = parseInt(e.target.dataset.peca);
