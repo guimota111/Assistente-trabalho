@@ -219,7 +219,7 @@ function getHistoryRefs() {
     if (!historyCache) return null;
     const days = Object.values(historyCache);
     if (days.length === 0) return null;
-    const freezeDates = (excludeFreezeDays && calendarioCache) ? new Set(calendarioCache.dates) : null;
+    const freezeDates = (excludeFreezeDays && calendarioCache) ? new Set(Object.keys(calendarioCache.days || {})) : null;
     let totalMs = 0, totalSlides = 0, monthMs = 0, monthSlides = 0, bestAvg = Infinity;
     const thisMonth = todayStr().slice(0, 7);
     for (const day of days) {
@@ -336,7 +336,7 @@ function renderSpeedometers(s) {
     }).join('');
     const freezeToggleLabel = excludeFreezeDays ? '❄ Com plantões' : '❄ Sem plantões';
     const freezeToggleTip   = excludeFreezeDays ? 'Dias de plantão estão excluídos das referências. Clique para incluir.' : 'Clique para excluir dias de plantão das referências.';
-    const hasCalendario = calendarioCache && calendarioCache.dates.length > 0;
+    const hasCalendario = isFreezeDateSet();
     return `<div class="card speedometers-wrap">
         <div class="speedometers-title-row">
             <span class="speedometers-title">Velocidade por lâmina</span>
@@ -914,9 +914,9 @@ function renderLoginHTML() {
 
 function renderToday() {
     const s = getStats();
-    const isTodayFreeze = calendarioCache && calendarioCache.dates.includes(todayStr());
-    const freezeBanner = isTodayFreeze
-        ? `<div class="freeze-day-banner">❄ Dia de plantão de congelação</div>`
+    const todayHospital = getFreezeHospital(todayStr());
+    const freezeBanner = todayHospital
+        ? `<div class="freeze-day-banner freeze-day-banner--${todayHospital.toLowerCase()}">❄ Plantão de congelação — ${todayHospital}</div>`
         : '';
     let content;
     if      (data.state === 'idle')    content = renderIdle();
@@ -1141,7 +1141,7 @@ function renderHistoryDay(day) {
     const header = `
     <div class="history-day-header" data-date="${day.date}">
         <div class="hday-left">
-            <div class="hday-date">${formatDateShort(day.date)}${calendarioCache && calendarioCache.dates.includes(day.date) ? ' <span class="badge-freeze-day">❄</span>' : ''}</div>
+            <div class="hday-date">${formatDateShort(day.date)}${getFreezeHospital(day.date) ? ` <span class="badge-freeze-day badge-freeze-day--${getFreezeHospital(day.date).toLowerCase()}">❄ ${getFreezeHospital(day.date)}</span>` : ''}</div>
             <div class="hday-meta">${s.totalSlides} lâminas · ${formatDuration(s.workMs)} trabalhado${sessaoLabel}</div>
         </div>
         <div style="display:flex;align-items:center;gap:4px">
@@ -1217,9 +1217,9 @@ function renderRecords() {
     if (!historyCache) return '<div style="text-align:center;padding:40px;color:var(--text-muted)">Carregando...</div>';
     const allDaysRec = Object.values(historyCache).sort((a, b) => a.date.localeCompare(b.date));
     if (allDaysRec.length === 0) return `<div class="empty-history">Nenhum histórico ainda.<br>Encerre sua primeira sessão para ver os records.</div>`;
-    const freezeDatesRec = (excludeFreezeDays && calendarioCache) ? new Set(calendarioCache.dates) : null;
+    const freezeDatesRec = (excludeFreezeDays && calendarioCache) ? new Set(Object.keys(calendarioCache.days || {})) : null;
     const days = freezeDatesRec ? allDaysRec.filter(d => !freezeDatesRec.has(d.date)) : allDaysRec;
-    const hasCalRec = calendarioCache && calendarioCache.dates.length > 0;
+    const hasCalRec = isFreezeDateSet();
     const recFreezeBtnHTML = hasCalRec
         ? `<div class="records-filter-row"><button class="freeze-toggle-btn${excludeFreezeDays ? ' active' : ''}" id="btnToggleFreeze" title="${excludeFreezeDays ? 'Plantões excluídos. Clique para incluir.' : 'Clique para excluir dias de plantão dos records.'}">${excludeFreezeDays ? '❄ Com plantões' : '❄ Sem plantões'}</button></div>`
         : '';
@@ -1325,7 +1325,7 @@ function renderStats() {
         return true;
     }
 
-    const freezeDatesSet = (excludeFreezeDays && calendarioCache) ? new Set(calendarioCache.dates) : null;
+    const freezeDatesSet = (excludeFreezeDays && calendarioCache) ? new Set(Object.keys(calendarioCache.days || {})) : null;
     const filtered = allDays.filter(d => inPeriod(d.date) && !(freezeDatesSet && freezeDatesSet.has(d.date)));
     const dayStats = filtered.map(d => ({ date: d.date, ...calcDayStats(d) }));
 
@@ -1450,7 +1450,7 @@ function renderStats() {
         <div class="legend-item"><div class="legend-dot" style="background:#0891b2"></div>Congelações</div>
     </div>` : '';
 
-    const hasCalStatsData = calendarioCache && calendarioCache.dates.length > 0;
+    const hasCalStatsData = isFreezeDateSet();
     const statsFreezeBtnHTML = hasCalStatsData
         ? `<button class="freeze-toggle-btn${excludeFreezeDays ? ' active' : ''}" id="btnToggleFreeze" title="${excludeFreezeDays ? 'Dias de plantão excluídos. Clique para incluir.' : 'Clique para excluir dias de plantão das médias.'}">${excludeFreezeDays ? '❄ Com plantões' : '❄ Sem plantões'}</button>`
         : '';
@@ -1504,11 +1504,31 @@ function renderStats() {
 async function loadCalendario() {
     try {
         const doc = await calendarioRef().get();
-        calendarioCache = doc.exists ? doc.data() : { dates: [] };
+        if (doc.exists) {
+            const d = doc.data();
+            // migra formato antigo (dates: []) para novo (days: { date: hospital })
+            if (d.dates && !d.days) {
+                const days = {};
+                for (const date of d.dates) days[date] = 'HOBRA';
+                calendarioCache = { days };
+                await calendarioRef().set(calendarioCache);
+            } else {
+                calendarioCache = d.days ? d : { days: {} };
+            }
+        } else {
+            calendarioCache = { days: {} };
+        }
     } catch(e) {
         console.warn('loadCalendario:', e);
-        calendarioCache = { dates: [] };
+        calendarioCache = { days: {} };
     }
+}
+
+function getFreezeHospital(dateStr) {
+    return calendarioCache && calendarioCache.days ? (calendarioCache.days[dateStr] || null) : null;
+}
+function isFreezeDateSet() {
+    return !!(calendarioCache && calendarioCache.days && Object.keys(calendarioCache.days).length > 0);
 }
 
 async function saveCalendario() {
@@ -1522,12 +1542,10 @@ async function saveCalendario() {
 
 async function toggleFreezeDay(dateStr) {
     if (!calendarioCache) return;
-    const idx = calendarioCache.dates.indexOf(dateStr);
-    if (idx >= 0) {
-        calendarioCache.dates.splice(idx, 1);
-    } else {
-        calendarioCache.dates.push(dateStr);
-    }
+    const cur = calendarioCache.days[dateStr] || null;
+    if (!cur)           calendarioCache.days[dateStr] = 'HOBRA';
+    else if (cur === 'HOBRA') calendarioCache.days[dateStr] = 'HAC';
+    else                delete calendarioCache.days[dateStr];
     await saveCalendario();
     renderRoot();
 }
@@ -1537,7 +1555,7 @@ function renderCalendario() {
         return '<div style="text-align:center;padding:40px;color:var(--text-muted)">Carregando...</div>';
     }
 
-    const freezeDates = new Set(calendarioCache.dates);
+    const days = calendarioCache.days || {};
     const today = todayStr();
 
     const now = new Date();
@@ -1549,31 +1567,36 @@ function renderCalendario() {
 
     const firstDay = new Date(vy, vm - 1, 1);
     const daysInMonth = new Date(vy, vm, 0).getDate();
-    // Sunday=0, shift so Monday=0
     let startOffset = firstDay.getDay() - 1;
     if (startOffset < 0) startOffset = 6;
 
     const monthName = firstDay.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
-
     const weekDays = ['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom'];
     const headerCells = weekDays.map(d => `<div class="cal-weekday">${d}</div>`).join('');
+
+    const CYCLE_TIP = { null: 'Clique para marcar HOBRA', HOBRA: 'HOBRA → clique para mudar para HAC', HAC: 'HAC → clique para remover' };
 
     let cells = '';
     for (let i = 0; i < startOffset; i++) cells += `<div class="cal-cell cal-empty"></div>`;
     for (let d = 1; d <= daysInMonth; d++) {
         const dateStr = `${vy}-${pad(vm)}-${pad(d)}`;
-        const isFrozen = freezeDates.has(dateStr);
+        const hospital = days[dateStr] || null;
         const isToday  = dateStr === today;
+        const frozenClass = hospital ? ` cal-frozen-${hospital.toLowerCase()}` : '';
+        const tip = CYCLE_TIP[hospital] || CYCLE_TIP.null;
         cells += `
-        <div class="cal-cell${isFrozen ? ' cal-frozen' : ''}${isToday ? ' cal-today' : ''}"
-             data-toggle-freeze="${dateStr}" title="${isFrozen ? 'Clique para remover plantão' : 'Clique para marcar plantão de congelação'}">
+        <div class="cal-cell${frozenClass}${isToday ? ' cal-today' : ''}"
+             data-toggle-freeze="${dateStr}" title="${tip}">
             <span class="cal-day-num">${d}</span>
-            ${isFrozen ? '<span class="cal-freeze-icon">❄</span>' : ''}
+            ${hospital ? `<span class="cal-freeze-icon">${hospital}</span>` : ''}
         </div>`;
     }
 
-    const frozenThisMonth = calendarioCache.dates.filter(d => d.startsWith(viewMonth)).length;
-    const frozenTotal = calendarioCache.dates.length;
+    const allDates = Object.entries(days);
+    const hobraMonth = allDates.filter(([d, h]) => d.startsWith(viewMonth) && h === 'HOBRA').length;
+    const hacMonth   = allDates.filter(([d, h]) => d.startsWith(viewMonth) && h === 'HAC').length;
+    const hobraTotal = allDates.filter(([, h]) => h === 'HOBRA').length;
+    const hacTotal   = allDates.filter(([, h]) => h === 'HAC').length;
 
     return `
     <div class="cal-wrap">
@@ -1583,15 +1606,17 @@ function renderCalendario() {
             <button class="cal-nav-btn" data-cal-month="${nextMonth}">&#8250;</button>
         </div>
         <div class="cal-legend">
-            <span class="cal-legend-item"><span class="cal-legend-dot frozen"></span>Plantão de congelação</span>
+            <span class="cal-legend-item"><span class="cal-legend-dot hobra"></span>HOBRA</span>
+            <span class="cal-legend-item"><span class="cal-legend-dot hac"></span>HAC</span>
+            <span class="cal-legend-item" style="color:var(--text-muted);font-size:0.78rem">Clique para ciclar: vazio → HOBRA → HAC → vazio</span>
         </div>
         <div class="cal-grid">
             ${headerCells}
             ${cells}
         </div>
         <div class="cal-summary">
-            <span>Este mês: <strong>${frozenThisMonth} plantão${frozenThisMonth !== 1 ? 'ões' : ''}</strong></span>
-            <span>Total registrado: <strong>${frozenTotal}</strong></span>
+            <span>Este mês: <strong class="hobra-text">${hobraMonth} HOBRA</strong> · <strong class="hac-text">${hacMonth} HAC</strong></span>
+            <span>Total: <strong class="hobra-text">${hobraTotal} HOBRA</strong> · <strong class="hac-text">${hacTotal} HAC</strong></span>
         </div>
     </div>`;
 }

@@ -429,17 +429,29 @@ header .date { color: var(--text-muted); font-size: 0.85rem; text-transform: cap
 /* ── Freeze day banner ── */
 .freeze-day-banner {
     display: flex; align-items: center; justify-content: center; gap: 8px;
-    background: rgba(29, 78, 216, 0.2); border: 1px solid #3b82f6;
     border-radius: 10px; padding: 9px 16px; margin-bottom: 12px;
-    font-size: 0.88rem; font-weight: 600; color: #93c5fd;
-    box-shadow: 0 0 16px rgba(59, 130, 246, 0.15);
+    font-size: 0.88rem; font-weight: 600;
+}
+.freeze-day-banner--hobra {
+    background: rgba(29, 78, 216, 0.2); border: 1px solid #3b82f6;
+    color: #93c5fd; box-shadow: 0 0 16px rgba(59, 130, 246, 0.15);
+}
+.freeze-day-banner--hac {
+    background: rgba(109, 40, 217, 0.2); border: 1px solid #a78bfa;
+    color: #c4b5fd; box-shadow: 0 0 16px rgba(167, 139, 250, 0.15);
 }
 
 /* ── Freeze badge on history day ── */
 .badge-freeze-day {
-    display: inline-block; font-size: 0.75rem; vertical-align: middle;
-    opacity: 0.8;
+    display: inline-block; font-size: 0.72rem; font-weight: 700;
+    vertical-align: middle; border-radius: 4px; padding: 1px 5px; margin-left: 2px;
 }
+.badge-freeze-day--hobra { background: rgba(29,78,216,0.25); color: #93c5fd; border: 1px solid #3b82f6; }
+.badge-freeze-day--hac   { background: rgba(109,40,217,0.25); color: #c4b5fd; border: 1px solid #a78bfa; }
+
+/* ── Hospital text colors ── */
+.hobra-text { color: #93c5fd; }
+.hac-text   { color: #c4b5fd; }
 
 /* ── Records filter row ── */
 .records-filter-row {
@@ -720,7 +732,8 @@ header .date { color: var(--text-muted); font-size: 0.85rem; text-transform: cap
     border-radius: 3px;
     background: var(--card2);
 }
-.cal-legend-dot.frozen { background: #1d4ed8; border: 1px solid #3b82f6; }
+.cal-legend-dot.hobra { background: #1d4ed8; border: 1px solid #3b82f6; }
+.cal-legend-dot.hac   { background: #6d28d9; border: 1px solid #a78bfa; }
 
 .cal-grid {
     display: grid;
@@ -768,11 +781,17 @@ header .date { color: var(--text-muted); font-size: 0.85rem; text-transform: cap
     font-weight: 700;
 }
 
-.cal-cell.cal-frozen {
-    background: #1e3a8a;
-    border-color: #3b82f6;
+.cal-cell.cal-frozen-hobra {
+    background: #1e3a8a; border-color: #3b82f6;
 }
-.cal-cell.cal-frozen:hover { background: #1d4ed8; }
+.cal-cell.cal-frozen-hobra:hover { background: #1d4ed8; }
+.cal-cell.cal-frozen-hobra .cal-freeze-icon { color: #93c5fd; font-size: 0.62rem; font-weight: 700; }
+
+.cal-cell.cal-frozen-hac {
+    background: #3b0764; border-color: #a78bfa;
+}
+.cal-cell.cal-frozen-hac:hover { background: #6d28d9; }
+.cal-cell.cal-frozen-hac .cal-freeze-icon { color: #c4b5fd; font-size: 0.62rem; font-weight: 700; }
 
 .cal-day-num {
     font-size: 0.9rem;
