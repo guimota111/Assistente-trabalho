@@ -107,7 +107,7 @@ async function initData() {
             d.cases  = d.cases  || [];
             d.pauses = d.pauses || [];
             if (d.date !== todayStr()) {
-                if (d.workStartTime && d.cases.length > 0) await saveToHistory(d);
+                if (d.workStartTime && d.cases.length > 0 && d.state !== 'ended') await saveToHistory(d);
                 data = defaultData();
                 saveData();
             } else {
