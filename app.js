@@ -914,10 +914,16 @@ function renderLoginHTML() {
 
 function renderToday() {
     const s = getStats();
-    if      (data.state === 'idle')    return renderIdle();
-    else if (data.state === 'working') return renderWorking(s);
-    else if (data.state === 'paused')  return renderPaused(s);
-    else                               return renderEnded(s);
+    const isTodayFreeze = calendarioCache && calendarioCache.dates.includes(todayStr());
+    const freezeBanner = isTodayFreeze
+        ? `<div class="freeze-day-banner">❄ Dia de plantão de congelação</div>`
+        : '';
+    let content;
+    if      (data.state === 'idle')    content = renderIdle();
+    else if (data.state === 'working') content = renderWorking(s);
+    else if (data.state === 'paused')  content = renderPaused(s);
+    else                               content = renderEnded(s);
+    return freezeBanner + content;
 }
 
 function renderIdle() {
@@ -1135,7 +1141,7 @@ function renderHistoryDay(day) {
     const header = `
     <div class="history-day-header" data-date="${day.date}">
         <div class="hday-left">
-            <div class="hday-date">${formatDateShort(day.date)}</div>
+            <div class="hday-date">${formatDateShort(day.date)}${calendarioCache && calendarioCache.dates.includes(day.date) ? ' <span class="badge-freeze-day">❄</span>' : ''}</div>
             <div class="hday-meta">${s.totalSlides} lâminas · ${formatDuration(s.workMs)} trabalhado${sessaoLabel}</div>
         </div>
         <div style="display:flex;align-items:center;gap:4px">
@@ -1209,8 +1215,14 @@ function renderHistoryDay(day) {
 /* ──────────── Records ──────────── */
 function renderRecords() {
     if (!historyCache) return '<div style="text-align:center;padding:40px;color:var(--text-muted)">Carregando...</div>';
-    const days = Object.values(historyCache).sort((a, b) => a.date.localeCompare(b.date));
-    if (days.length === 0) return `<div class="empty-history">Nenhum histórico ainda.<br>Encerre sua primeira sessão para ver os records.</div>`;
+    const allDaysRec = Object.values(historyCache).sort((a, b) => a.date.localeCompare(b.date));
+    if (allDaysRec.length === 0) return `<div class="empty-history">Nenhum histórico ainda.<br>Encerre sua primeira sessão para ver os records.</div>`;
+    const freezeDatesRec = (excludeFreezeDays && calendarioCache) ? new Set(calendarioCache.dates) : null;
+    const days = freezeDatesRec ? allDaysRec.filter(d => !freezeDatesRec.has(d.date)) : allDaysRec;
+    const hasCalRec = calendarioCache && calendarioCache.dates.length > 0;
+    const recFreezeBtnHTML = hasCalRec
+        ? `<div class="records-filter-row"><button class="freeze-toggle-btn${excludeFreezeDays ? ' active' : ''}" id="btnToggleFreeze" title="${excludeFreezeDays ? 'Plantões excluídos. Clique para incluir.' : 'Clique para excluir dias de plantão dos records.'}">${excludeFreezeDays ? '❄ Com plantões' : '❄ Sem plantões'}</button></div>`
+        : '';
 
     function weekKey(dateStr) {
         const d = new Date(dateStr + 'T12:00:00');
@@ -1267,7 +1279,7 @@ function renderRecords() {
         ${date ? `<div class="record-date">${date}</div>` : ''}
     </div>`;
 
-    return `
+    return recFreezeBtnHTML + `
     <div class="records-section">
         <div class="records-section-title">Records de Dia</div>
         <div class="records-grid">
@@ -1462,7 +1474,7 @@ function renderStats() {
         </div>
         <div class="segment-chip${statsSegment === 'own'    ? ' active' : ''}" data-segment="own">
             <div class="sc-val">${statsMetric === 'slides' ? totalOwnS : totalOwnC}</div>
-            <div class="sc-lbl">Minhas ${statsMetric === 'slides' ? 'Lâminas' : 'Casos'}</div>
+            <div class="sc-lbl">${statsMetric === 'slides' ? 'Minhas Lâminas' : 'Meus Casos'}</div>
         </div>
         <div class="segment-chip${statsSegment === 'third'  ? ' active' : ''}" data-segment="third">
             <div class="sc-val">${statsMetric === 'slides' ? totalThirdS : totalThirdC}</div>
@@ -1482,7 +1494,7 @@ function renderStats() {
         <div class="stats-summary-item"><div class="ssi-value">${formatShort(totalWorkMs) || '--'}</div><div class="ssi-label">Tempo total</div></div>
     </div>
     <div class="chart-wrap">
-        <div class="chart-title">Casos por período</div>
+        <div class="chart-title">${statsMetric === 'slides' ? 'Lâminas por período' : 'Casos por período'}</div>
         <div class="chart-bars">${bars}</div>
         ${legendHTML}
     </div>`;
