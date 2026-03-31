@@ -29,7 +29,10 @@ let historyCache     = null;
 let menuOpen         = false;
 let statsView        = 'week';
 let statsSegment     = 'all';
-let pendenciasCache  = null;
+let pendenciasCache    = null;
+let calendarioCache    = null;
+let calViewMonth       = null; // 'YYYY-MM'
+let excludeFreezeDays  = false;
 
 /* ──────────── Utilities ──────────── */
 function now()      { return Date.now(); }
@@ -97,6 +100,7 @@ function defaultData() {
 function currentRef()      { return db.collection('users').doc(currentUser.uid).collection('data').doc('current'); }
 function historyRef(date)  { return db.collection('users').doc(currentUser.uid).collection('history').doc(date); }
 function historyCollRef()  { return db.collection('users').doc(currentUser.uid).collection('history'); }
+function calendarioRef()   { return db.collection('users').doc(currentUser.uid).collection('calendario').doc('freezeDays'); }
 
 /* ──────────── Data operations ──────────── */
 async function initData() {
@@ -107,7 +111,7 @@ async function initData() {
             d.cases  = d.cases  || [];
             d.pauses = d.pauses || [];
             if (d.date !== todayStr()) {
-                if (d.workStartTime && d.cases.length > 0) await saveToHistory(d);
+                if (d.workStartTime && d.cases.length > 0 && d.state !== 'ended') await saveToHistory(d);
                 data = defaultData();
                 saveData();
             } else {
@@ -214,9 +218,11 @@ function getHistoryRefs() {
     if (!historyCache) return null;
     const days = Object.values(historyCache);
     if (days.length === 0) return null;
+    const freezeDates = (excludeFreezeDays && calendarioCache) ? new Set(calendarioCache.dates) : null;
     let totalMs = 0, totalSlides = 0, monthMs = 0, monthSlides = 0, bestAvg = Infinity;
     const thisMonth = todayStr().slice(0, 7);
     for (const day of days) {
+        if (freezeDates && freezeDates.has(day.date)) continue;
         const s = calcDayStats(day);
         if (s.totalSlides > 0 && s.avgPerSlide > 0) {
             totalMs     += s.totalCasesMs;
@@ -327,8 +333,14 @@ function renderSpeedometers(s) {
             ${diffHtml}
         </div>`;
     }).join('');
+    const freezeToggleLabel = excludeFreezeDays ? '❄ Com plantões' : '❄ Sem plantões';
+    const freezeToggleTip   = excludeFreezeDays ? 'Dias de plantão estão excluídos das referências. Clique para incluir.' : 'Clique para excluir dias de plantão das referências.';
+    const hasCalendario = calendarioCache && calendarioCache.dates.length > 0;
     return `<div class="card speedometers-wrap">
-        <div class="speedometers-title">Velocidade por lâmina</div>
+        <div class="speedometers-title-row">
+            <span class="speedometers-title">Velocidade por lâmina</span>
+            ${hasCalendario ? `<button class="freeze-toggle-btn${excludeFreezeDays ? ' active' : ''}" id="btnToggleFreeze" title="${freezeToggleTip}">${freezeToggleLabel}</button>` : ''}
+        </div>
         <div class="speedometers-grid">${cards}</div>
     </div>`;
 }
@@ -777,6 +789,10 @@ async function setView(view) {
         renderRoot();
         await loadPendencias();
     }
+    if (view === 'calendario' && !calendarioCache) {
+        renderRoot();
+        await loadCalendario();
+    }
     renderRoot();
 }
 
@@ -806,6 +822,9 @@ function renderRoot() {
     } else if (currentView === 'pendencias') {
         contentHTML = renderPendencias();
         viewTitle = 'Pendências';
+    } else if (currentView === 'calendario') {
+        contentHTML = renderCalendario();
+        viewTitle = 'Calendário';
     } else {
         contentHTML = renderToday();
         viewTitle = 'Controle de Laudos';
@@ -841,6 +860,10 @@ function renderRoot() {
             <button class="sidebar-nav-item${currentView === 'pendencias' ? ' active' : ''}" id="sideNavPendencias">
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg>
                 Pendências
+            </button>
+            <button class="sidebar-nav-item${currentView === 'calendario' ? ' active' : ''}" id="sideNavCalendario">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/><line x1="8" y1="14" x2="8" y2="14" stroke-width="3" stroke-linecap="round"/></svg>
+                Calendário
             </button>
         </nav>
         <div class="sidebar-footer">
@@ -1289,7 +1312,8 @@ function renderStats() {
         return true;
     }
 
-    const filtered = allDays.filter(d => inPeriod(d.date));
+    const freezeDatesSet = (excludeFreezeDays && calendarioCache) ? new Set(calendarioCache.dates) : null;
+    const filtered = allDays.filter(d => inPeriod(d.date) && !(freezeDatesSet && freezeDatesSet.has(d.date)));
     const dayStats = filtered.map(d => ({ date: d.date, ...calcDayStats(d) }));
 
     let totalCases = 0, totalSlides = 0, totalCasesMs = 0, totalWorkMs = 0;
@@ -1397,8 +1421,16 @@ function renderStats() {
         <div class="legend-item"><div class="legend-dot" style="background:#0891b2"></div>Congelações</div>
     </div>` : '';
 
+    const hasCalStatsData = calendarioCache && calendarioCache.dates.length > 0;
+    const statsFreezeBtnHTML = hasCalStatsData
+        ? `<button class="freeze-toggle-btn${excludeFreezeDays ? ' active' : ''}" id="btnToggleFreeze" title="${excludeFreezeDays ? 'Dias de plantão excluídos. Clique para incluir.' : 'Clique para excluir dias de plantão das médias.'}">${excludeFreezeDays ? '❄ Com plantões' : '❄ Sem plantões'}</button>`
+        : '';
+
     return `
-    <div class="stats-period-tabs">${periodTabs}</div>
+    <div class="stats-period-tabs-row">
+        <div class="stats-period-tabs">${periodTabs}</div>
+        ${statsFreezeBtnHTML}
+    </div>
     <div class="stats-segment-row">
         <div class="segment-chip${statsSegment === 'all'    ? ' active' : ''}" data-segment="all">
             <div class="sc-val">${totalOwn + totalThird}</div>
@@ -1429,6 +1461,102 @@ function renderStats() {
         <div class="chart-title">Casos por período</div>
         <div class="chart-bars">${bars}</div>
         ${legendHTML}
+    </div>`;
+}
+
+/* ──────────── Calendário de Congelação ──────────── */
+async function loadCalendario() {
+    try {
+        const doc = await calendarioRef().get();
+        calendarioCache = doc.exists ? doc.data() : { dates: [] };
+    } catch(e) {
+        console.warn('loadCalendario:', e);
+        calendarioCache = { dates: [] };
+    }
+}
+
+async function saveCalendario() {
+    if (!currentUser || !calendarioCache) return;
+    try {
+        await calendarioRef().set(calendarioCache);
+    } catch(e) {
+        console.warn('saveCalendario:', e);
+    }
+}
+
+async function toggleFreezeDay(dateStr) {
+    if (!calendarioCache) return;
+    const idx = calendarioCache.dates.indexOf(dateStr);
+    if (idx >= 0) {
+        calendarioCache.dates.splice(idx, 1);
+    } else {
+        calendarioCache.dates.push(dateStr);
+    }
+    await saveCalendario();
+    renderRoot();
+}
+
+function renderCalendario() {
+    if (!calendarioCache) {
+        return '<div style="text-align:center;padding:40px;color:var(--text-muted)">Carregando...</div>';
+    }
+
+    const freezeDates = new Set(calendarioCache.dates);
+    const today = todayStr();
+
+    const now = new Date();
+    const viewMonth = calViewMonth || `${now.getFullYear()}-${pad(now.getMonth() + 1)}`;
+    const [vy, vm] = viewMonth.split('-').map(Number);
+
+    const prevMonth = vm === 1 ? `${vy - 1}-12` : `${vy}-${pad(vm - 1)}`;
+    const nextMonth = vm === 12 ? `${vy + 1}-01` : `${vy}-${pad(vm + 1)}`;
+
+    const firstDay = new Date(vy, vm - 1, 1);
+    const daysInMonth = new Date(vy, vm, 0).getDate();
+    // Sunday=0, shift so Monday=0
+    let startOffset = firstDay.getDay() - 1;
+    if (startOffset < 0) startOffset = 6;
+
+    const monthName = firstDay.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
+
+    const weekDays = ['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom'];
+    const headerCells = weekDays.map(d => `<div class="cal-weekday">${d}</div>`).join('');
+
+    let cells = '';
+    for (let i = 0; i < startOffset; i++) cells += `<div class="cal-cell cal-empty"></div>`;
+    for (let d = 1; d <= daysInMonth; d++) {
+        const dateStr = `${vy}-${pad(vm)}-${pad(d)}`;
+        const isFrozen = freezeDates.has(dateStr);
+        const isToday  = dateStr === today;
+        cells += `
+        <div class="cal-cell${isFrozen ? ' cal-frozen' : ''}${isToday ? ' cal-today' : ''}"
+             data-toggle-freeze="${dateStr}" title="${isFrozen ? 'Clique para remover plantão' : 'Clique para marcar plantão de congelação'}">
+            <span class="cal-day-num">${d}</span>
+            ${isFrozen ? '<span class="cal-freeze-icon">❄</span>' : ''}
+        </div>`;
+    }
+
+    const frozenThisMonth = calendarioCache.dates.filter(d => d.startsWith(viewMonth)).length;
+    const frozenTotal = calendarioCache.dates.length;
+
+    return `
+    <div class="cal-wrap">
+        <div class="cal-header">
+            <button class="cal-nav-btn" data-cal-month="${prevMonth}">&#8249;</button>
+            <span class="cal-month-title">${monthName.charAt(0).toUpperCase() + monthName.slice(1)}</span>
+            <button class="cal-nav-btn" data-cal-month="${nextMonth}">&#8250;</button>
+        </div>
+        <div class="cal-legend">
+            <span class="cal-legend-item"><span class="cal-legend-dot frozen"></span>Plantão de congelação</span>
+        </div>
+        <div class="cal-grid">
+            ${headerCells}
+            ${cells}
+        </div>
+        <div class="cal-summary">
+            <span>Este mês: <strong>${frozenThisMonth} plantão${frozenThisMonth !== 1 ? 'ões' : ''}</strong></span>
+            <span>Total registrado: <strong>${frozenTotal}</strong></span>
+        </div>
     </div>`;
 }
 
@@ -1666,6 +1794,16 @@ function attachEvents() {
         btn.addEventListener('click', () => deleteCase(parseInt(btn.dataset.deleteCase)));
     });
 
+    document.getElementById('sideNavCalendario')?.addEventListener('click', () => setView('calendario'));
+    document.getElementById('btnToggleFreeze')?.addEventListener('click', () => { excludeFreezeDays = !excludeFreezeDays; renderRoot(); });
+
+    document.querySelectorAll('.cal-nav-btn[data-cal-month]').forEach(btn => {
+        btn.addEventListener('click', () => { calViewMonth = btn.dataset.calMonth; renderRoot(); });
+    });
+    document.querySelectorAll('.cal-cell[data-toggle-freeze]').forEach(cell => {
+        cell.addEventListener('click', () => toggleFreezeDay(cell.dataset.toggleFreeze));
+    });
+
     document.querySelectorAll('.period-btn[data-period]').forEach(btn => {
         btn.addEventListener('click', () => { statsView = btn.dataset.period; renderRoot(); });
     });
@@ -1682,8 +1820,9 @@ auth.onAuthStateChanged(async user => {
         await initData();
         renderRoot();
         if (data.state === 'working' || data.state === 'paused') startTimer();
-        // Load history in background so speedometers are available on the Today view
-        if (!historyCache) loadHistory().then(() => renderRoot()).catch(() => {});
+        // Load history and calendario in background so speedometers are available on the Today view
+        if (!historyCache)    loadHistory().then(() => renderRoot()).catch(() => {});
+        if (!calendarioCache) loadCalendario().then(() => renderRoot()).catch(() => {});
     } else {
         stopTimer();
         data = defaultData();
