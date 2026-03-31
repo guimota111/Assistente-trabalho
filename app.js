@@ -1657,33 +1657,23 @@ function renderPendencias() {
         ? `<div class="pend-empty">Nenhuma pendência cadastrada.</div>`
         : items.map((item, idx) => `
             <div class="pend-row">
-                <div class="pend-cell">
-                    <div class="pend-cell-label">Paciente</div>
-                    <input class="pend-input" type="text"
-                        value="${esc(item.name)}"
-                        data-pend-field="name" data-pend-idx="${idx}"
-                        placeholder="Nome do paciente">
-                </div>
-                <div class="pend-cell">
-                    <div class="pend-cell-label">Status</div>
-                    <select class="pend-select" data-pend-field="status" data-pend-idx="${idx}">
-                        ${statusOptions.map(opt =>
-                            `<option value="${esc(opt)}"${item.status === opt ? ' selected' : ''}>${esc(opt)}</option>`
-                        ).join('')}
-                        <option value="__new__">+ Novo status...</option>
-                    </select>
-                </div>
-                <div class="pend-cell">
-                    <div class="pend-cell-label">Observações</div>
-                    <textarea class="pend-textarea" data-pend-field="obs" data-pend-idx="${idx}"
-                        placeholder="Observações...">${esc(item.obs)}</textarea>
-                </div>
-                <div class="pend-cell pend-cell-date">
-                    <div class="pend-cell-label">Última modificação</div>
-                    <div class="pend-date-val">${formatPendDate(item.updatedAt)}</div>
-                </div>
+                <input class="pend-input" type="text"
+                    value="${esc(item.name)}"
+                    data-pend-field="name" data-pend-idx="${idx}"
+                    placeholder="Paciente">
+                <select class="pend-select" data-pend-field="status" data-pend-idx="${idx}">
+                    ${statusOptions.map(opt =>
+                        `<option value="${esc(opt)}"${item.status === opt ? ' selected' : ''}>${esc(opt)}</option>`
+                    ).join('')}
+                    <option value="__new__">+ Novo status...</option>
+                </select>
+                <input class="pend-input pend-obs" type="text"
+                    value="${esc(item.obs)}"
+                    data-pend-field="obs" data-pend-idx="${idx}"
+                    placeholder="Observações">
+                <div class="pend-date-val">${formatPendDate(item.updatedAt)}</div>
                 <button class="btn-delete-pend" data-pend-del="${idx}" title="Apagar pendência">
-                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4a1 1 0 011-1h4a1 1 0 011 1v2"/></svg>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4a1 1 0 011-1h4a1 1 0 011 1v2"/></svg>
                 </button>
             </div>`
         ).join('');
@@ -1694,11 +1684,11 @@ function renderPendencias() {
                 <div class="pend-col-h">Paciente</div>
                 <div class="pend-col-h">Status</div>
                 <div class="pend-col-h">Observações</div>
-                <div class="pend-col-h">Última modificação</div>
+                <div class="pend-col-h">Modificado</div>
                 <div class="pend-col-h-del"></div>
             </div>
             <div id="pendList">${rowsHTML}</div>
-            <button class="btn btn-primary pend-add-btn" id="btnAddPend">+ Adicionar Pendência</button>
+            <button class="btn btn-primary pend-add-btn" id="btnAddPend">+ Adicionar</button>
         </div>`;
 }
 
@@ -1735,22 +1725,11 @@ function attachEvents() {
     document.querySelectorAll('.pend-input').forEach(input => {
         input.addEventListener('blur', async () => {
             const idx = parseInt(input.dataset.pendIdx);
-            pendenciasCache.items[idx].name = input.value;
+            const field = input.dataset.pendField;
+            pendenciasCache.items[idx][field] = input.value;
             pendenciasCache.items[idx].updatedAt = new Date().toISOString();
             await savePendencias();
-            // update just the date cell without full re-render
             const dateEl = input.closest('.pend-row')?.querySelector('.pend-date-val');
-            if (dateEl) dateEl.textContent = formatPendDate(pendenciasCache.items[idx].updatedAt);
-        });
-    });
-
-    document.querySelectorAll('.pend-textarea').forEach(ta => {
-        ta.addEventListener('blur', async () => {
-            const idx = parseInt(ta.dataset.pendIdx);
-            pendenciasCache.items[idx].obs = ta.value;
-            pendenciasCache.items[idx].updatedAt = new Date().toISOString();
-            await savePendencias();
-            const dateEl = ta.closest('.pend-row')?.querySelector('.pend-date-val');
             if (dateEl) dateEl.textContent = formatPendDate(pendenciasCache.items[idx].updatedAt);
         });
     });
