@@ -186,6 +186,10 @@ function renderCongelacao() {
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
                     Baixar .txt
                 </button>
+                <button class="btn btn-outline" id="congSaveModelo">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+                    Salvar modelo
+                </button>
                 <button class="btn btn-outline" id="congClearDoc" style="margin-left:auto;color:var(--danger);border-color:var(--danger)">
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/></svg>
                     Limpar
@@ -283,6 +287,12 @@ function attachCongEvents() {
         a.href = url; a.download = `Congelacao_${safe}.txt`;
         document.body.appendChild(a); a.click();
         setTimeout(() => { document.body.removeChild(a); URL.revokeObjectURL(url); }, 500);
+    });
+    document.getElementById('congSaveModelo')?.addEventListener('click', async () => {
+        const btn = document.getElementById('congSaveModelo');
+        if (btn) btn.textContent = 'Salvando...';
+        await saveModelo();
+        if (btn) { const orig = btn.innerHTML; btn.textContent = '✓ Salvo!'; setTimeout(() => { btn.innerHTML = orig; }, 2000); }
     });
     document.getElementById('congClearDoc')?.addEventListener('click', () => {
         if (!confirm('Limpar todo o documento?')) return;

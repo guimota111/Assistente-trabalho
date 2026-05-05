@@ -1,25 +1,13 @@
-/* ──────────── Init ──────────── */
 auth.onAuthStateChanged(async user => {
     currentUser = user;
     authReady   = true;
     if (user) {
-        await initData();
+        modelosCache = null;
         renderRoot();
-        if (data.state === 'working' || data.state === 'paused') startTimer();
-        // Load history and calendario in background so speedometers are available on the Today view
-        if (!historyCache)    loadHistory().then(() => renderRoot()).catch(() => {});
-        if (!calendarioCache) loadCalendario().then(() => renderRoot()).catch(() => {});
+        await loadModelos();
+        renderRoot();
     } else {
-        stopTimer();
-        data = defaultData();
+        modelosCache = null;
         renderRoot();
     }
 });
-
-if ('serviceWorker' in navigator) {
-    window.addEventListener('load', () => {
-        navigator.serviceWorker.register('/Assistente-trabalho/sw.js', {
-            scope: '/Assistente-trabalho/'
-        }).catch(() => {});
-    });
-}

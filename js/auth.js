@@ -11,7 +11,6 @@ async function signIn() {
 }
 
 async function doSignOut() {
-    stopTimer();
-    historyCache = null;
+    modelosCache = null;
     await auth.signOut();
 }
