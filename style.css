@@ -906,10 +906,11 @@ header .date { color: var(--text-muted); font-size: 0.85rem; text-transform: cap
 .cong-cassetes-list { display: flex; flex-direction: column; gap: 7px; }
 .cong-cassete-row { display: grid; grid-template-columns: 200px 1fr 34px; gap: 8px; align-items: center; }
 @media (max-width: 580px) { .cong-cassete-row { grid-template-columns: 1fr 34px; } }
-.cong-cassete-range { display: flex; align-items: center; gap: 6px; }
-.cong-cassete-inicio { width: 70px; flex-shrink: 0; }
-.cong-cassete-fim { width: 85px; flex-shrink: 0; }
-.cong-cassete-sep { font-size: 0.8rem; color: var(--text-muted); flex-shrink: 0; }
+.cong-cassete-range { display: flex; align-items: center; gap: 4px; }
+.cong-cassete-letter { font-family: var(--tech-font); font-weight: 700; font-size: 0.9rem; color: var(--primary); flex-shrink: 0; }
+.cong-cassete-inicio { width: 52px; flex-shrink: 0; }
+.cong-cassete-fim { width: 62px; flex-shrink: 0; }
+.cong-cassete-sep { font-size: 0.8rem; color: var(--text-muted); flex-shrink: 0; padding: 0 2px; }
 .cong-cassete-desc { flex: 1; }
 .cong-btn-remove-cassete {
     background: transparent; border: 1.5px solid var(--border); color: var(--text-muted);

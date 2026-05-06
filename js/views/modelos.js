@@ -36,9 +36,11 @@ function buildModeloText(modelo) {
     for (const p of modelo.pecas) {
         lines.push('');
         const inc = p.tudoIncluido ? 'Todo material foi enviado para exame histológico' : 'Material parcialmente enviado para exame histológico';
-        lines.push(`${p.letter}) ${p.nome || '[Nome da Peça]'}: ${(p.macroscopia || '').trim()} ${inc} - ${p.blocos || 1}B/${p.fragmentos || 2}F.`);
+        lines.push(`${p.letter}) ${p.nome || '[Nome da Peça]'}: ${(p.macroscopia || '').trim()} ${inc} - ${p.blocos || 1}B/${p.fragmentos || 'V'}F.`);
         for (const c of p.cassetes) {
-            const faixa = c.fim && c.fim.trim() ? `${c.inicio} a ${c.fim.trim()}` : c.inicio;
+            const ini = casseteId(p.letter, c.inicio);
+            const fim = casseteId(p.letter, c.fim);
+            const faixa = fim ? `${ini} a ${fim}` : ini;
             lines.push(`${faixa} – ${c.descricao || ''}`);
         }
     }

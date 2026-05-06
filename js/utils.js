@@ -44,3 +44,16 @@ function setText(id, val) {
     const el = document.getElementById(id);
     if (el) el.textContent = val;
 }
+
+/* Cassete helpers — usados em congelacao.js e modelos.js */
+// Retorna o ID completo do cassete (ex: "A" + "4" → "A4"; "A4" → "A4")
+function casseteId(letter, val) {
+    const v = String(val || '').trim();
+    if (!v) return '';
+    return v.toUpperCase().startsWith(letter.toUpperCase()) ? v : letter + v;
+}
+// Remove o prefixo de letra para exibição no input (ex: "A4" → "4"; "4" → "4")
+function stripCasseteLetter(letter, val) {
+    const v = String(val || '');
+    return v.toUpperCase().startsWith(letter.toUpperCase()) ? v.slice(letter.length) : v;
+}

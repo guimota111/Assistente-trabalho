@@ -1,8 +1,8 @@
 /* ──────────── Congelação ──────────── */
 function defaultPeca(idx) {
     const letter = String.fromCharCode(65 + idx);
-    return { letter, nome: '', macroscopia: '', blocos: 1, fragmentos: 2, tudoIncluido: true,
-             cassetes: [{ inicio: letter + '1', fim: '', descricao: '' }], resultado: '' };
+    return { letter, nome: '', macroscopia: '', blocos: 1, fragmentos: 'V', tudoIncluido: true,
+             cassetes: [{ inicio: '1', fim: '', descricao: '' }], resultado: '' };
 }
 
 function getCongSuggestions(key) {
@@ -40,10 +40,12 @@ function buildCongText() {
     for (const p of d.pecas) {
         lines.push('');
         const inc = p.tudoIncluido ? 'Todo material foi enviado para exame histológico' : 'Material parcialmente enviado para exame histológico';
-        const cassetesStr = ` ${inc} - ${p.blocos||1}B/${p.fragmentos||2}F.`;
+        const cassetesStr = ` ${inc} - ${p.blocos||1}B/${p.fragmentos||'V'}F.`;
         lines.push(`${p.letter}) ${p.nome || '[Nome da Peça]'}: ${(p.macroscopia||'').trim()}${cassetesStr}`);
         for (const c of p.cassetes) {
-            const faixa = c.fim && c.fim.trim() ? `${c.inicio} a ${c.fim.trim()}` : c.inicio;
+            const ini = casseteId(p.letter, c.inicio);
+            const fim = casseteId(p.letter, c.fim);
+            const faixa = fim ? `${ini} a ${fim}` : ini;
             lines.push(`${faixa} – ${c.descricao || ''}`);
         }
     }
@@ -75,9 +77,11 @@ function renderCongelacao() {
         const cassetesHTML = p.cassetes.map((c, ci) => `
         <div class="cong-cassete-row">
             <div class="cong-cassete-range">
-                <input class="cong-input cong-cassete-inicio" type="text" value="${esc(c.inicio)}" placeholder="${p.letter}${ci+1}" data-peca="${pi}" data-cassete="${ci}" id="congCassInicio_${pi}_${ci}">
+                <span class="cong-cassete-letter">${p.letter}</span>
+                <input class="cong-input cong-cassete-inicio" type="text" value="${esc(stripCasseteLetter(p.letter, c.inicio))}" placeholder="${ci+1}" data-peca="${pi}" data-cassete="${ci}" id="congCassInicio_${pi}_${ci}">
                 <span class="cong-cassete-sep">a</span>
-                <input class="cong-input cong-cassete-fim" type="text" value="${esc(c.fim)}" placeholder="(opcional)" data-peca="${pi}" data-cassete="${ci}" id="congCassFim_${pi}_${ci}">
+                <span class="cong-cassete-letter">${p.letter}</span>
+                <input class="cong-input cong-cassete-fim" type="text" value="${esc(stripCasseteLetter(p.letter, c.fim))}" placeholder="(opcional)" data-peca="${pi}" data-cassete="${ci}" id="congCassFim_${pi}_${ci}">
             </div>
             <input class="cong-input cong-cassete-desc" type="text" value="${esc(c.descricao)}" placeholder="Descrição do cassete..." data-peca="${pi}" data-cassete="${ci}" id="congCassDesc_${pi}_${ci}">
             <button class="cong-btn-remove-cassete" data-peca="${pi}" data-cassete="${ci}" title="Remover cassete" ${p.cassetes.length === 1 ? 'disabled' : ''}>✕</button>
@@ -98,7 +102,7 @@ function renderCongelacao() {
                 </div>
                 <div class="cong-field-group">
                     <label class="cong-label">Fragmentos (F)</label>
-                    <input class="cong-input cong-fragmentos" type="number" min="1" value="${p.fragmentos}" data-peca="${pi}" id="congFragmentos${pi}">
+                    <input class="cong-input cong-fragmentos" type="text" value="${esc(String(p.fragmentos))}" placeholder="V" data-peca="${pi}" id="congFragmentos${pi}">
                 </div>
                 <div class="cong-field-group">
                     <label class="cong-label">Inclusão</label>
@@ -238,7 +242,7 @@ function attachCongEvents() {
         });
     });
     document.querySelectorAll('.cong-blocos').forEach(inp => inp.addEventListener('input', e => { congDoc.pecas[parseInt(e.target.dataset.peca)].blocos = Math.max(1, parseInt(e.target.value)||1); updateCongPreview(); }));
-    document.querySelectorAll('.cong-fragmentos').forEach(inp => inp.addEventListener('input', e => { congDoc.pecas[parseInt(e.target.dataset.peca)].fragmentos = Math.max(1, parseInt(e.target.value)||1); updateCongPreview(); }));
+    document.querySelectorAll('.cong-fragmentos').forEach(inp => inp.addEventListener('input', e => { congDoc.pecas[parseInt(e.target.dataset.peca)].fragmentos = e.target.value.toUpperCase() || 'V'; updateCongPreview(); }));
     document.querySelectorAll('input[data-field="tudoIncluido"]').forEach(chk => {
         chk.addEventListener('change', e => {
             const pi = parseInt(e.target.dataset.peca);
@@ -252,7 +256,11 @@ function attachCongEvents() {
         btn.addEventListener('click', () => {
             const pi = parseInt(btn.dataset.peca);
             const p = congDoc.pecas[pi];
-            p.cassetes.push({ inicio: p.letter + (p.cassetes.length + 1), fim: '', descricao: '' });
+            const last = p.cassetes[p.cassetes.length - 1];
+            const lastRef = (last.fim && last.fim.trim()) ? last.fim : last.inicio;
+            const num = parseInt(stripCasseteLetter(p.letter, lastRef));
+            const nextInicio = isNaN(num) ? '' : String(num + 1);
+            p.cassetes.push({ inicio: nextInicio, fim: '', descricao: '' });
             renderRoot();
         });
     });
