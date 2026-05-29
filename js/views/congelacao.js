@@ -33,6 +33,8 @@ function buildCongText() {
     lines.push(`Paciente: ${d.paciente || '[Paciente]'}`);
     lines.push(`Cirurgião: ${d.cirurgiao || '[Cirurgião]'}`);
     lines.push(`Patologista: ${d.patologista || '[Patologista]'}`);
+    if (d.isquemiaFria && d.isquemiaFria.trim())
+        lines.push(`Tempo de isquemia fria: ${d.isquemiaFria.trim()}`);
     if (d.informesClinicosVisible && d.informesClinicos.trim())
         lines.push(`Informes clínicos: ${d.informesClinicos.trim()}`);
     lines.push('');
@@ -160,6 +162,10 @@ function renderCongelacao() {
                     <input class="cong-input" type="text" id="congPatologista" value="${esc(d.patologista)}" placeholder="Nome do patologista" list="patSugList" autocomplete="off">
                     ${datalistHTML('patSugList', patSugs)}
                 </div>
+                <div class="cong-field">
+                    <label class="cong-label" for="congIsquemiaFria">Tempo de Isquemia Fria</label>
+                    <input class="cong-input" type="text" id="congIsquemiaFria" value="${esc(d.isquemiaFria)}" placeholder="Ex: 45 min">
+                </div>
             </div>
             <div class="cong-informes-row">
                 <button class="cong-btn-toggle-informes ${d.informesClinicosVisible ? 'active' : ''}" id="congToggleInformes">
@@ -219,6 +225,7 @@ function attachCongEvents() {
     document.getElementById('congCirurgiao')?.addEventListener('blur', e => saveCongSuggestion('cirurgiao', e.target.value));
     document.getElementById('congPatologista')?.addEventListener('input', e => { congDoc.patologista = e.target.value; updateCongPreview(); });
     document.getElementById('congPatologista')?.addEventListener('blur', e => saveCongSuggestion('patologista', e.target.value));
+    document.getElementById('congIsquemiaFria')?.addEventListener('input', e => { congDoc.isquemiaFria = e.target.value; updateCongPreview(); });
     document.getElementById('congToggleInformes')?.addEventListener('click', () => { congDoc.informesClinicosVisible = !congDoc.informesClinicosVisible; renderRoot(); });
     document.getElementById('congInformesClinicos')?.addEventListener('input', e => { congDoc.informesClinicos = e.target.value; updateCongPreview(); });
     document.getElementById('congAddPeca')?.addEventListener('click', () => { congDoc.pecas.push(defaultPeca(congDoc.pecas.length)); renderRoot(); });

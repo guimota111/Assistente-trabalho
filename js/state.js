@@ -1,6 +1,7 @@
 /* ──────────── Congelação State ──────────── */
 function defaultCongDoc() {
     return { hospital: '', paciente: '', cirurgiao: '', patologista: '',
+             isquemiaFria: '',
              informesClinicosVisible: false, informesClinicos: '', pecas: [] };
 }
 
