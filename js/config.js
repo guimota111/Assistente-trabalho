@@ -1,11 +1,12 @@
 /* ──────────── Firebase ──────────── */
 const firebaseConfig = {
-    apiKey: "AIzaSyBWsWY3OJOZvy-2YVSWqDK_38dRi7eXAqA",
-    authDomain: "laudos-a7009.firebaseapp.com",
-    projectId: "laudos-a7009",
-    storageBucket: "laudos-a7009.firebasestorage.app",
-    messagingSenderId: "225605061167",
-    appId: "1:225605061167:web:f25c92f63b2617392114da"
+    apiKey: "AIzaSyBG7-1BtlTaBhoGxeBofbHz2v_klWgkbZ4",
+    authDomain: "congelacao-572a1.firebaseapp.com",
+    projectId: "congelacao-572a1",
+    storageBucket: "congelacao-572a1.firebasestorage.app",
+    messagingSenderId: "506743282639",
+    appId: "1:506743282639:web:e51f4ccdd3d0b7d44290ba",
+    measurementId: "G-RE8HBBVPTP"
 };
 firebase.initializeApp(firebaseConfig);
 const db  = firebase.firestore();
