@@ -6,6 +6,7 @@ function defaultCongDoc() {
 }
 
 let congDoc      = defaultCongDoc();
+let mascaraState = null; // null | { phase:'picker'|'form', tipo, targetPeca, data }
 let currentView  = 'congelacao'; // 'congelacao' | 'modelos'
 let currentUser  = null;
 let authReady    = false;

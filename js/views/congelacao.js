@@ -106,10 +106,13 @@ function renderCongelacao() {
             </div>
             <div class="cong-macro-labelrow">
                 <label class="cong-label">Macroscopia</label>
-                <label class="cong-frase-toggle" title="Prefixa a macroscopia com a frase padrão de recebimento">
-                    <input type="checkbox" data-peca="${pi}" data-field="fraseRecebimento" id="congFrase${pi}" ${p.fraseRecebimento !== false ? 'checked' : ''}>
-                    <span>Frase de recebimento</span>
-                </label>
+                <div class="cong-macro-tools">
+                    <button class="cong-btn-mascara" data-peca="${pi}" title="Preencher a macroscopia com uma máscara">🦋 Máscaras</button>
+                    <label class="cong-frase-toggle" title="Prefixa a macroscopia com a frase padrão de recebimento">
+                        <input type="checkbox" data-peca="${pi}" data-field="fraseRecebimento" id="congFrase${pi}" ${p.fraseRecebimento !== false ? 'checked' : ''}>
+                        <span>Frase de recebimento</span>
+                    </label>
+                </div>
             </div>
             ${p.fraseRecebimento !== false ? `<div class="cong-frase-hint">${esc(FRASE_RECEBIMENTO)}…</div>` : ''}
             <textarea class="cong-textarea" placeholder="${p.fraseRecebimento !== false ? 'Complete a frase: um fragmento de tecido…' : 'Descreva a macroscopia da peça...'}" data-peca="${pi}" id="congMacro${pi}">${esc(p.macroscopia)}</textarea>
@@ -226,6 +229,7 @@ function renderCongelacao() {
                 <pre class="cong-preview-text" id="congPreviewText">${esc(buildCongText())}</pre>
             </div>
         </div>
+        ${renderMascaraModal()}
     </div>`;
 }
 
@@ -268,6 +272,12 @@ function attachCongEvents() {
     document.querySelectorAll('input[data-field="fraseRecebimento"]').forEach(chk => {
         chk.addEventListener('change', e => {
             congDoc.pecas[parseInt(e.target.dataset.peca)].fraseRecebimento = e.target.checked;
+            renderRoot();
+        });
+    });
+    document.querySelectorAll('.cong-btn-mascara').forEach(btn => {
+        btn.addEventListener('click', () => {
+            mascaraState = { phase: 'picker', tipo: null, targetPeca: parseInt(btn.dataset.peca), data: null };
             renderRoot();
         });
     });
@@ -347,4 +357,5 @@ function attachCongEvents() {
         congDoc = defaultCongDoc();
         renderRoot();
     });
+    attachMascaraEvents();
 }
