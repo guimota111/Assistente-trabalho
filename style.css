@@ -881,6 +881,25 @@ header .date { color: var(--text-muted); font-size: 0.85rem; text-transform: cap
     transition: background 0.15s, color 0.15s;
 }
 .cong-btn-remove-peca:hover { background: #3f1111; color: var(--danger); border-color: var(--danger); }
+.cong-peca-reorder { display: flex; flex-direction: column; gap: 2px; flex-shrink: 0; }
+.cong-btn-move-peca {
+    background: transparent; border: 1.5px solid var(--border); color: var(--text-muted);
+    border-radius: 6px; width: 26px; height: 18px; line-height: 1; font-size: 0.6rem;
+    cursor: pointer; display: flex; align-items: center; justify-content: center;
+    transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+.cong-btn-move-peca:hover:not(:disabled) { background: rgba(0, 229, 255, 0.12); color: var(--primary); border-color: var(--primary); }
+.cong-btn-move-peca:disabled { opacity: 0.3; cursor: not-allowed; }
+
+/* Frase de recebimento padrão */
+.cong-macro-labelrow { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.cong-frase-toggle { display: flex; align-items: center; gap: 6px; cursor: pointer; font-size: 0.78rem; color: var(--text-muted); user-select: none; }
+.cong-frase-toggle input { accent-color: var(--primary); cursor: pointer; }
+.cong-frase-hint {
+    font-size: 0.8rem; font-style: italic; color: var(--primary);
+    background: rgba(0, 229, 255, 0.06); border-left: 2px solid var(--primary);
+    padding: 4px 8px; border-radius: 4px; margin-bottom: -6px;
+}
 
 .cong-inline-row { display: flex; gap: 16px; align-items: flex-start; flex-wrap: wrap; }
 .cong-field-group { display: flex; flex-direction: column; gap: 6px; }

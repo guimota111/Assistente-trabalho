@@ -1,7 +1,10 @@
 /* ──────────── Congelação ──────────── */
+const FRASE_RECEBIMENTO = 'O material foi recebido a fresco para exame de congelação e consiste em';
+
 function defaultPeca(idx) {
     const letter = String.fromCharCode(65 + idx);
     return { letter, nome: '', macroscopia: '', blocos: 1, fragmentos: 'V', tudoIncluido: true,
+             fraseRecebimento: true,
              cassetes: [{ inicio: '1', fim: '', descricao: '' }], resultado: '' };
 }
 
@@ -43,7 +46,9 @@ function buildCongText() {
         lines.push('');
         const inc = p.tudoIncluido ? 'Todo material foi enviado para exame histológico' : 'Material parcialmente enviado para exame histológico';
         const cassetesStr = ` ${inc} - ${p.blocos||1}B/${p.fragmentos||'V'}F.`;
-        lines.push(`${p.letter}) ${p.nome || '[Nome da Peça]'}: ${(p.macroscopia||'').trim()}${cassetesStr}`);
+        const macro = (p.macroscopia || '').trim();
+        const corpo = (p.fraseRecebimento !== false) ? `${FRASE_RECEBIMENTO} ${macro}`.trim() : macro;
+        lines.push(`${p.letter}) ${p.nome || '[Nome da Peça]'}: ${corpo}${cassetesStr}`);
         for (const c of p.cassetes) {
             const ini = casseteId(p.letter, c.inicio);
             const fim = casseteId(p.letter, c.fim);
@@ -93,10 +98,21 @@ function renderCongelacao() {
             <div class="cong-peca-header">
                 <div class="cong-peca-letter">${p.letter}</div>
                 <input class="cong-input cong-peca-nome" type="text" value="${esc(p.nome)}" placeholder="Nome da peça / material" data-peca="${pi}" id="congPecaNome${pi}">
+                ${d.pecas.length > 1 ? `<div class="cong-peca-reorder">
+                    <button class="cong-btn-move-peca" data-peca="${pi}" data-dir="-1" title="Mover para cima" ${pi === 0 ? 'disabled' : ''}>▲</button>
+                    <button class="cong-btn-move-peca" data-peca="${pi}" data-dir="1" title="Mover para baixo" ${pi === d.pecas.length - 1 ? 'disabled' : ''}>▼</button>
+                </div>` : ''}
                 ${d.pecas.length > 1 ? `<button class="cong-btn-remove-peca" data-peca="${pi}" title="Remover peça">🗑</button>` : ''}
             </div>
-            <label class="cong-label">Macroscopia</label>
-            <textarea class="cong-textarea" placeholder="Descreva a macroscopia da peça..." data-peca="${pi}" id="congMacro${pi}">${esc(p.macroscopia)}</textarea>
+            <div class="cong-macro-labelrow">
+                <label class="cong-label">Macroscopia</label>
+                <label class="cong-frase-toggle" title="Prefixa a macroscopia com a frase padrão de recebimento">
+                    <input type="checkbox" data-peca="${pi}" data-field="fraseRecebimento" id="congFrase${pi}" ${p.fraseRecebimento !== false ? 'checked' : ''}>
+                    <span>Frase de recebimento</span>
+                </label>
+            </div>
+            ${p.fraseRecebimento !== false ? `<div class="cong-frase-hint">${esc(FRASE_RECEBIMENTO)}…</div>` : ''}
+            <textarea class="cong-textarea" placeholder="${p.fraseRecebimento !== false ? 'Complete a frase: um fragmento de tecido…' : 'Descreva a macroscopia da peça...'}" data-peca="${pi}" id="congMacro${pi}">${esc(p.macroscopia)}</textarea>
             <div class="cong-inline-row">
                 <div class="cong-field-group">
                     <label class="cong-label">Blocos (B)</label>
@@ -235,6 +251,23 @@ function attachCongEvents() {
             if (!confirm('Remover esta peça?')) return;
             congDoc.pecas.splice(pi, 1);
             congDoc.pecas.forEach((p, i) => { p.letter = String.fromCharCode(65 + i); });
+            renderRoot();
+        });
+    });
+    document.querySelectorAll('.cong-btn-move-peca').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const pi = parseInt(btn.dataset.peca), dir = parseInt(btn.dataset.dir);
+            const ni = pi + dir;
+            if (ni < 0 || ni >= congDoc.pecas.length) return;
+            const arr = congDoc.pecas;
+            [arr[pi], arr[ni]] = [arr[ni], arr[pi]];
+            arr.forEach((p, i) => { p.letter = String.fromCharCode(65 + i); });
+            renderRoot();
+        });
+    });
+    document.querySelectorAll('input[data-field="fraseRecebimento"]').forEach(chk => {
+        chk.addEventListener('change', e => {
+            congDoc.pecas[parseInt(e.target.dataset.peca)].fraseRecebimento = e.target.checked;
             renderRoot();
         });
     });
