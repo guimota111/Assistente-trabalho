@@ -1113,3 +1113,61 @@ header .date { color: var(--text-muted); font-size: 0.85rem; text-transform: cap
     overflow-y: auto; flex: 1; background: #020508; border: 1px solid var(--border);
     border-radius: 10px; padding: 16px 18px;
 }
+
+/* ──────────── Cirurgia de Mohs ──────────── */
+.mohs-divisoes-section { margin-top: 18px; }
+.mohs-divisoes-headrow {
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 12px; flex-wrap: wrap; margin-bottom: 12px;
+}
+.mohs-diagram-wrap {
+    display: flex; justify-content: center; align-items: center;
+    background: rgba(2, 6, 15, 0.5); border: 1px solid var(--border);
+    border-radius: 12px; padding: 10px; margin-bottom: 14px;
+}
+.mohs-diagram-wrap.halfmoon { height: 150px; overflow: hidden; }
+.mohs-diagram-svg { display: block; max-width: 220px; width: 100%; height: auto; }
+.mohs-sector { cursor: pointer; transition: filter 0.15s; }
+.mohs-sector:hover { filter: brightness(1.25); }
+.mohs-sector.has-tumor { stroke: var(--danger); stroke-width: 2.5; }
+.mohs-sector-label {
+    font-size: 11px; font-weight: 700; fill: #f8fafc; pointer-events: none;
+    text-shadow: 0 1px 3px rgba(0,0,0,0.8);
+}
+.mohs-tumor-mark {
+    font-size: 10px; font-weight: 700; fill: var(--danger); pointer-events: none;
+    text-shadow: 0 1px 3px rgba(0,0,0,0.9);
+}
+.mohs-divisoes-list { display: flex; flex-direction: column; gap: 8px; }
+.mohs-divisao-row {
+    display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+    background: var(--card2); border: 1px solid var(--border);
+    border-radius: 10px; padding: 8px 10px;
+}
+.mohs-divisao-row .mohs-div-label { max-width: 110px; }
+.mohs-divisao-row .mohs-div-cor { max-width: 140px; }
+.mohs-div-swatch {
+    width: 22px; height: 22px; border-radius: 50%; flex-shrink: 0;
+    border: 1.5px solid var(--border);
+}
+.mohs-div-tumor-toggle {
+    display: flex; align-items: center; gap: 6px; font-size: 0.82rem;
+    color: var(--text-muted); cursor: pointer; white-space: nowrap;
+}
+.mohs-div-tumor-toggle input { accent-color: var(--danger); }
+.mohs-hint { font-size: 0.75rem; color: var(--text-muted); margin-top: 8px; }
+.mohs-ampliacoes-section { margin: 22px 0; }
+.mohs-ampliacoes-title {
+    font-size: 0.95rem; font-weight: 700; color: var(--text);
+    margin-bottom: 10px;
+}
+.mohs-ampliacoes-hint {
+    font-size: 0.85rem; color: var(--text-muted); margin-bottom: 12px;
+}
+#mohsAmpliacoesList .mohs-peca-card { margin-bottom: 16px; }
+.mohs-btn-remove-amp {
+    background: none; border: 1px solid var(--border); color: var(--text-muted);
+    cursor: pointer; font-size: 0.85rem; padding: 6px 10px; border-radius: 8px;
+    flex-shrink: 0; transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+.mohs-btn-remove-amp:hover { background: #3f1111; color: var(--danger); border-color: var(--danger); }

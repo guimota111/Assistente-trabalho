@@ -29,7 +29,9 @@ function renderRoot() {
         return;
     }
 
-    const contentHTML = currentView === 'modelos' ? renderModelos() : renderCongelacao();
+    const contentHTML = currentView === 'modelos' ? renderModelos()
+        : currentView === 'mohs' ? renderMohs()
+        : renderCongelacao();
     root.innerHTML = `
     <div class="container">
         <header>
@@ -41,6 +43,7 @@ function renderRoot() {
             </div>
             <nav class="cong-view-tabs">
                 <button class="cong-tab${currentView === 'congelacao' ? ' active' : ''}" id="tabCongelacao">Nova congelação</button>
+                <button class="cong-tab${currentView === 'mohs' ? ' active' : ''}" id="tabMohs">Cirurgia de Mohs</button>
                 <button class="cong-tab${currentView === 'modelos' ? ' active' : ''}" id="tabModelos">Modelos salvos</button>
             </nav>
         </header>
@@ -49,6 +52,7 @@ function renderRoot() {
 
     document.getElementById('btnSignOut')?.addEventListener('click', doSignOut);
     document.getElementById('tabCongelacao').addEventListener('click', () => { currentView = 'congelacao'; renderRoot(); });
+    document.getElementById('tabMohs').addEventListener('click', () => { currentView = 'mohs'; renderRoot(); });
     document.getElementById('tabModelos').addEventListener('click', async () => {
         currentView = 'modelos';
         if (!modelosCache) { renderRoot(); await loadModelos(); }
@@ -56,5 +60,6 @@ function renderRoot() {
     });
 
     if (currentView === 'modelos') attachModelosEvents();
+    else if (currentView === 'mohs') attachMohsEvents();
     else attachCongEvents();
 }
