@@ -1171,3 +1171,29 @@ header .date { color: var(--text-muted); font-size: 0.85rem; text-transform: cap
     flex-shrink: 0; transition: background 0.15s, color 0.15s, border-color 0.15s;
 }
 .mohs-btn-remove-amp:hover { background: #3f1111; color: var(--danger); border-color: var(--danger); }
+.mohs-div-cassete-wrap { display: flex; align-items: center; gap: 3px; flex-shrink: 0; }
+.mohs-div-cassete-letter {
+    font-family: var(--tech-font); font-weight: 700; font-size: 0.85rem;
+    color: var(--primary);
+}
+.mohs-div-cassete { max-width: 54px; text-align: center; }
+.mohs-frag-block {
+    border: 1px dashed var(--border); border-radius: 12px;
+    padding: 14px; margin-top: 14px;
+}
+.mohs-frag-head {
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 10px; margin-bottom: 10px;
+}
+.mohs-frag-title {
+    font-size: 0.85rem; font-weight: 700; color: var(--primary);
+    text-transform: uppercase; letter-spacing: 0.05em;
+}
+.mohs-remove-frag {
+    background: none; border: 1px solid var(--border); color: var(--text-muted);
+    cursor: pointer; font-size: 0.8rem; padding: 4px 9px; border-radius: 8px;
+    transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+.mohs-remove-frag:hover { background: #3f1111; color: var(--danger); border-color: var(--danger); }
+.mohs-add-frag { margin-top: 14px; font-size: 0.85rem; opacity: 0.85; }
+.mohs-add-frag:hover { opacity: 1; }

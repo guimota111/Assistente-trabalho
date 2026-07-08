@@ -44,57 +44,84 @@ function clockLabel(shape, fracStart, fracEnd) {
     return `${clockHour(shape, fracStart)}-${clockHour(shape, fracEnd)}h`;
 }
 
-function buildDivisoes(shape, numDivisoes) {
+function buildDivisoes(shape, numDivisoes, casseteStart) {
+    casseteStart = casseteStart || 1;
     if (numDivisoes <= 1) {
-        return [{ label: shape === 'circle' ? 'Peça inteira' : 'Extensão total', cor: '', tumor: false }];
+        return [{ label: shape === 'circle' ? 'Peça inteira' : 'Extensão total', cor: '', tumor: false, cassete: String(casseteStart) }];
     }
     const arr = [];
     for (let i = 0; i < numDivisoes; i++) {
-        arr.push({ label: clockLabel(shape, i / numDivisoes, (i + 1) / numDivisoes), cor: '', tumor: false });
+        arr.push({
+            label: clockLabel(shape, i / numDivisoes, (i + 1) / numDivisoes),
+            cor: '', tumor: false, cassete: String(casseteStart + i),
+        });
     }
     return arr;
 }
 
-function defaultMohsPeca(letter, shape, opts) {
-    opts = opts || {};
+// "Fragmento": unidade com medidas + desenho + divisões (a peça principal também é um)
+function defaultMohsFrag(shape, casseteStart) {
     const numDivisoes = shape === 'circle' ? 4 : 2;
     return {
-        letter,
-        shape, // 'circle' (peça principal) | 'halfmoon' (ampliação)
-        nome: shape === 'circle' ? '' : `Ampliação ${letter}`,
+        shape, // 'circle' | 'halfmoon'
         medidas: { c: '', l: '', a: '' },
-        comDebulking: !!opts.comDebulking,
+        numDivisoes,
+        divisoes: buildDivisoes(shape, numDivisoes, casseteStart),
+    };
+}
+
+function defaultMohsPrincipal() {
+    const f = defaultMohsFrag('circle', 1);
+    return Object.assign(f, {
+        letter: 'A', nome: '',
+        comDebulking: true,
         debulkingNome: 'debulking',
         debulkingMedidas: { c: '', l: '' },
-        numDivisoes,
-        divisoes: buildDivisoes(shape, numDivisoes),
-    };
+        debulkingCassete: String(f.numDivisoes + 1),
+    });
+}
+
+function defaultMohsAmpliacao(letter) {
+    return { letter, nome: `Ampliação ${letter}`, fragmentos: [defaultMohsFrag('halfmoon', 1)] };
 }
 
 function defaultMohsDoc() {
     return {
         hospital: '', paciente: '', cirurgiao: '', patologistas: '', tipoTumor: '',
         informeClinicoVisible: false, informeClinico: '',
-        pecaPrincipal: defaultMohsPeca('A', 'circle', { comDebulking: true }),
+        pecaPrincipal: defaultMohsPrincipal(),
         ampliacoes: [],
     };
 }
 
 function mohsHasTumor() {
     return mohsDoc.pecaPrincipal.divisoes.some(d => d.tumor) ||
-        mohsDoc.ampliacoes.some(a => a.divisoes.some(d => d.tumor));
+        mohsDoc.ampliacoes.some(a => a.fragmentos.some(f => f.divisoes.some(d => d.tumor)));
+}
+
+// Maior número de cassete já usado numa ampliação (ignorando o fragmento exceptIdx)
+function ampMaxCassete(amp, exceptIdx) {
+    let max = 0;
+    amp.fragmentos.forEach((f, fi) => {
+        if (fi === exceptIdx) return;
+        f.divisoes.forEach(d => {
+            const n = parseInt(d.cassete);
+            if (!isNaN(n) && n > max) max = n;
+        });
+    });
+    return max;
 }
 
 /* ---------- Desenho SVG ---------- */
-function buildDiagramSVG(peca) {
+function buildDiagramSVG(frag) {
     const size = 220;
     const cx = size / 2, cy = size / 2, r = size / 2 - 10;
-    const n = peca.divisoes.length;
+    const n = frag.divisoes.length;
     let content = '';
     for (let i = 0; i < n; i++) {
-        const d = peca.divisoes[i];
-        const startDeg = peca.shape === 'circle' ? i * (360 / n) : -90 + i * (180 / n);
-        const endDeg = peca.shape === 'circle' ? (i + 1) * (360 / n) : -90 + (i + 1) * (180 / n);
+        const d = frag.divisoes[i];
+        const startDeg = frag.shape === 'circle' ? i * (360 / n) : -90 + i * (180 / n);
+        const endDeg = frag.shape === 'circle' ? (i + 1) * (360 / n) : -90 + (i + 1) * (180 / n);
         const fill = tintaHex(d.cor);
         content += `<path d="${sectorPath(cx, cy, r, startDeg, endDeg)}" fill="${fill === 'transparent' ? 'none' : fill}" fill-opacity="${fill === 'transparent' ? 0 : 0.82}" stroke="#0f172a" stroke-width="1.5" data-mohs-sector="${i}" class="mohs-sector${d.tumor ? ' has-tumor' : ''}"></path>`;
         const midDeg = (startDeg + endDeg) / 2;
@@ -105,7 +132,7 @@ function buildDiagramSVG(peca) {
             content += `<text x="${lp.x.toFixed(2)}" y="${(lp.y + 15).toFixed(2)}" class="mohs-tumor-mark" text-anchor="middle" dominant-baseline="middle" data-mohs-sector="${i}">&#9679; tumor</text>`;
         }
     }
-    const wrapClass = peca.shape === 'halfmoon' ? 'mohs-diagram-wrap halfmoon' : 'mohs-diagram-wrap';
+    const wrapClass = frag.shape === 'halfmoon' ? 'mohs-diagram-wrap halfmoon' : 'mohs-diagram-wrap';
     return `<div class="${wrapClass}"><svg class="mohs-diagram-svg" viewBox="0 0 ${size} ${size}" width="${size}" height="${size}">${content}</svg></div>`;
 }
 
@@ -124,8 +151,13 @@ function joinComma(arr) {
 
 function capitalize(s) { return s ? s.charAt(0).toUpperCase() + s.slice(1) : s; }
 
-function buildTintasFrase(peca) {
-    const withColor = peca.divisoes.filter(d => d.cor && d.cor.trim());
+function numeroPorExtenso(n) {
+    const nomes = ['', 'um', 'dois', 'três', 'quatro', 'cinco', 'seis', 'sete', 'oito', 'nove', 'dez'];
+    return nomes[n] || String(n);
+}
+
+function buildTintasFrase(frag) {
+    const withColor = frag.divisoes.filter(d => d.cor && d.cor.trim());
     if (!withColor.length) return '';
     const groups = [];
     for (const d of withColor) {
@@ -138,11 +170,101 @@ function buildTintasFrase(peca) {
     return capitalize(frases.join(' e ')) + '.';
 }
 
+/* ---------- Cassetes (agrupamento por número) ---------- */
+// Rótulos de relógio contíguos são fundidos: "12-3h" + "3-6h" → "12-3-6h"
+function mergeClockLabels(labels) {
+    const parsed = labels.map(l => {
+        const m = /^(\d{1,2})-(\d{1,2})h$/.exec(String(l).trim());
+        return m ? [m[1], m[2]] : null;
+    });
+    if (!parsed.every(Boolean)) return null;
+    const chain = parsed.slice(1);
+    const nums = [parsed[0][0], parsed[0][1]];
+    let progress = true;
+    while (chain.length && progress) {
+        progress = false;
+        for (let i = 0; i < chain.length; i++) {
+            if (chain[i][0] === nums[nums.length - 1]) { nums.push(chain[i][1]); chain.splice(i, 1); progress = true; break; }
+            if (chain[i][1] === nums[0]) { nums.unshift(chain[i][0]); chain.splice(i, 1); progress = true; break; }
+        }
+    }
+    return chain.length ? null : nums.join('-') + 'h';
+}
+
+function margemDesc(labels) {
+    const merged = mergeClockLabels(labels);
+    if (merged) return `margem ${merged}`;
+    if (labels.length === 1) return `margem ${labels[0]}`;
+    return `margens ${joinComma(labels)}`;
+}
+
+// entries: [{ cassete, kind:'margem'|'deb', label, fragIdx }]
+function buildCasseteGroups(entries) {
+    const groups = new Map();
+    let blank = 0;
+    for (const e of entries) {
+        const key = String(e.cassete || '').trim() || ('__vazio' + (blank++));
+        if (!groups.has(key)) groups.set(key, { key, entries: [] });
+        groups.get(key).entries.push(e);
+    }
+    return [...groups.values()].sort((a, b) => {
+        const na = parseInt(a.key), nb = parseInt(b.key);
+        if (isNaN(na) && isNaN(nb)) return 0;
+        if (isNaN(na)) return 1;
+        if (isNaN(nb)) return -1;
+        return na - nb;
+    });
+}
+
+function casseteGroupId(letter, key) {
+    const n = parseInt(key);
+    return letter + (isNaN(n) ? '?' : n);
+}
+
+function casseteGroupDesc(group, multiFrag, debNome) {
+    const margens = group.entries.filter(e => e.kind === 'margem');
+    const debs = group.entries.filter(e => e.kind === 'deb');
+    const parts = [];
+    if (margens.length) {
+        if (multiFrag) {
+            const byFrag = new Map();
+            for (const e of margens) {
+                if (!byFrag.has(e.fragIdx)) byFrag.set(e.fragIdx, []);
+                byFrag.get(e.fragIdx).push(e.label);
+            }
+            const subs = [...byFrag.entries()].map(([fi, labels]) => `fragmento ${fi + 1}, ${margemDesc(labels)}`);
+            parts.push(subs.join('; ') + '/profunda');
+        } else {
+            parts.push(margemDesc(margens.map(e => e.label)) + '/profunda');
+        }
+    }
+    if (debs.length) parts.push((debNome || 'debulking') + '.');
+    return parts.join(' + ');
+}
+
+function principalCasseteEntries(p) {
+    const entries = p.divisoes.map(d => ({ cassete: d.cassete, kind: 'margem', label: d.label, fragIdx: 0 }));
+    if (p.comDebulking) entries.push({ cassete: p.debulkingCassete, kind: 'deb' });
+    return entries;
+}
+
+function ampCasseteEntries(amp) {
+    const entries = [];
+    amp.fragmentos.forEach((f, fi) => f.divisoes.forEach(d =>
+        entries.push({ cassete: d.cassete, kind: 'margem', label: d.label, fragIdx: fi })));
+    return entries;
+}
+
+function buildMohsCassetes(letter, entries, multiFrag, debNome) {
+    return buildCasseteGroups(entries).map(g =>
+        `${casseteGroupId(letter, g.key)} – ${casseteGroupDesc(g, multiFrag, debNome)}`);
+}
+
+/* ---------- Descrição / resultado ---------- */
 function buildMohsPecaDescricao(p) {
     const nome = p.nome || '[Nome da Peça]';
-    const tipoProduto = p.shape === 'circle' ? 'produto de cirurgia de Mohs' : 'produto de ampliação de margem cirúrgica';
     const medidas = fmtMedidasMohs(p.medidas, ['c', 'l', 'a']);
-    let corpo = `o material foi recebido a fresco para exame de congelação e consiste em ${tipoProduto} medindo ${medidas}`;
+    let corpo = `o material foi recebido a fresco para exame de congelação e consiste em produto de cirurgia de Mohs medindo ${medidas}`;
     if (p.comDebulking) {
         const debMed = fmtMedidasMohs(p.debulkingMedidas, ['c', 'l']);
         corpo += `, com ${p.debulkingNome || 'debulking'} medindo ${debMed}`;
@@ -151,21 +273,37 @@ function buildMohsPecaDescricao(p) {
     const tintas = buildTintasFrase(p);
     if (tintas) corpo += ` ${tintas}`;
     corpo += ' Aos cortes, o tecido é elástico e brancacento.';
-    const numCassetes = p.divisoes.length + (p.comDebulking ? 1 : 0);
+    const numCassetes = buildCasseteGroups(principalCasseteEntries(p)).length;
     corpo += ` Todo material foi enviado para estudo histológico – ${numCassetes}B/VF.`;
     return `${nome}: ${corpo}`;
 }
 
-function buildMohsCassetes(p) {
-    const lines = p.divisoes.map((d, i) => `${p.letter}${i + 1} – margem ${d.label}`);
-    if (p.comDebulking) lines.push(`${p.letter}${p.divisoes.length + 1} – ${p.debulkingNome || 'debulking'}.`);
-    return lines;
+function buildMohsAmpDescricao(amp) {
+    const nome = amp.nome || '[Nome da Ampliação]';
+    let corpo = 'o material foi recebido a fresco para exame de congelação e consiste em produto de ampliação de margem cirúrgica';
+    const frags = amp.fragmentos;
+    if (frags.length === 1) {
+        corpo += ` medindo ${fmtMedidasMohs(frags[0].medidas, ['c', 'l', 'a'])}.`;
+        const t = buildTintasFrase(frags[0]);
+        if (t) corpo += ` ${t}`;
+    } else {
+        corpo += ` constituído por ${numeroPorExtenso(frags.length)} fragmentos.`;
+        frags.forEach((f, fi) => {
+            corpo += ` Fragmento ${fi + 1} mede ${fmtMedidasMohs(f.medidas, ['c', 'l', 'a'])}.`;
+            const t = buildTintasFrase(f);
+            if (t) corpo += ` No fragmento ${fi + 1}, ${t.charAt(0).toLowerCase()}${t.slice(1)}`;
+        });
+    }
+    corpo += ' Aos cortes, o tecido é elástico e brancacento.';
+    const numCassetes = buildCasseteGroups(ampCasseteEntries(amp)).length;
+    corpo += ` Todo material foi enviado para estudo histológico – ${numCassetes}B/VF.`;
+    return `${nome}: ${corpo}`;
 }
 
-function buildMohsResultLines(peca, tipoTumor) {
+function buildMohsResultLines(fragLike, tipoTumor) {
     const tumorNome = (tipoTumor || '').trim() || 'neoplasia';
-    const livres = peca.divisoes.filter(d => !d.tumor).map(d => d.label);
-    const comprometidas = peca.divisoes.filter(d => d.tumor).map(d => d.label);
+    const livres = fragLike.divisoes.filter(d => !d.tumor).map(d => d.label);
+    const comprometidas = fragLike.divisoes.filter(d => d.tumor).map(d => d.label);
     const lines = [];
     if (livres.length) lines.push(`Margens cirúrgicas ${joinComma(livres)} e profunda livres de ${tumorNome}.`);
     if (comprometidas.length) {
@@ -176,12 +314,23 @@ function buildMohsResultLines(peca, tipoTumor) {
     return lines;
 }
 
+function buildAmpResultLines(amp, tipoTumor) {
+    if (amp.fragmentos.length === 1) return buildMohsResultLines(amp.fragmentos[0], tipoTumor);
+    const lines = [];
+    amp.fragmentos.forEach((f, fi) => {
+        for (const r of buildMohsResultLines(f, tipoTumor)) {
+            lines.push(`Fragmento ${fi + 1}: ${r.charAt(0).toLowerCase()}${r.slice(1)}`);
+        }
+    });
+    return lines;
+}
+
 function buildMohsText() {
     const d = mohsDoc;
     const today = new Date();
     const months = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
     const dateStr = `Brasília, ${today.getDate()} de ${months[today.getMonth()]} de ${today.getFullYear()}.`;
-    const allPecas = [d.pecaPrincipal, ...d.ampliacoes];
+    const p = d.pecaPrincipal;
 
     const lines = [];
     lines.push(d.hospital || '[Hospital]');
@@ -193,17 +342,23 @@ function buildMohsText() {
     lines.push('');
     lines.push('EXAME TRANSOPERATÓRIO (CONGELAÇÃO)');
 
-    allPecas.forEach((p, i) => {
-        if (i > 0) lines.push('');
-        lines.push(buildMohsPecaDescricao(p));
-        for (const c of buildMohsCassetes(p)) lines.push(c);
-    });
+    lines.push(buildMohsPecaDescricao(p));
+    for (const c of buildMohsCassetes(p.letter, principalCasseteEntries(p), false, p.debulkingNome)) lines.push(c);
+
+    for (const amp of d.ampliacoes) {
+        lines.push('');
+        lines.push(buildMohsAmpDescricao(amp));
+        for (const c of buildMohsCassetes(amp.letter, ampCasseteEntries(amp), amp.fragmentos.length > 1)) lines.push(c);
+    }
 
     lines.push('');
     lines.push('Resultado do exame de congelação');
-    for (const p of allPecas) {
-        lines.push(`${p.nome || '[Nome da Peça]'}: `);
-        for (const r of buildMohsResultLines(p, d.tipoTumor)) lines.push(`- ${r}`);
+    lines.push(`${p.nome || '[Nome da Peça]'}: `);
+    for (const r of buildMohsResultLines(p, d.tipoTumor)) lines.push(`- ${r}`);
+    lines.push('');
+    for (const amp of d.ampliacoes) {
+        lines.push(`${amp.nome || '[Nome da Ampliação]'}: `);
+        for (const r of buildAmpResultLines(amp, d.tipoTumor)) lines.push(`- ${r}`);
         lines.push('');
     }
     lines.push(dateStr);
@@ -214,9 +369,13 @@ function buildMohsText() {
 }
 
 /* ---------- Render ---------- */
-function renderMohsDivisoesRows(peca) {
-    return peca.divisoes.map((d, di) => `
+function renderMohsDivisoesRows(frag, letter) {
+    return frag.divisoes.map((d, di) => `
     <div class="mohs-divisao-row">
+        <span class="mohs-div-cassete-wrap" title="Cassete desta parte — repita o mesmo número em outras partes para mandá-las juntas no mesmo cassete">
+            <span class="mohs-div-cassete-letter">${esc(letter)}</span>
+            <input class="cong-input mohs-div-cassete" data-div="${di}" value="${esc(d.cassete)}" placeholder="nº">
+        </span>
         <input class="cong-input mohs-div-label" data-div="${di}" value="${esc(d.label)}" placeholder="Rótulo (ex: 12-3h)">
         <span class="mohs-div-swatch" style="background:${tintaHex(d.cor)}"></span>
         <input class="cong-input mohs-div-cor" data-div="${di}" value="${esc(d.cor)}" list="mohsTintaList" placeholder="Cor da tinta" autocomplete="off">
@@ -227,36 +386,78 @@ function renderMohsDivisoesRows(peca) {
     </div>`).join('');
 }
 
-function renderMohsPecaCard(peca, isPrincipal, ampIdx) {
+function renderMohsDivisoesSection(frag, letter) {
     const numOptions = [1, 2, 3, 4, 6, 8].map(n =>
-        `<option value="${n}" ${peca.numDivisoes === n ? 'selected' : ''}>${n === 1 ? 'Sem divisão' : n + ' partes'}</option>`).join('');
+        `<option value="${n}" ${frag.numDivisoes === n ? 'selected' : ''}>${n === 1 ? 'Sem divisão' : n + ' partes'}</option>`).join('');
     return `
-    <div class="cong-peca-card mohs-peca-card" data-mohs-card="${isPrincipal ? 'principal' : 'amp' + ampIdx}">
+    <div class="mohs-divisoes-section">
+        <div class="mohs-divisoes-headrow">
+            <label class="cong-label">Divisões da peça (quadrantes ou piques do cirurgião)</label>
+            <select class="cong-select mohs-num-divisoes">${numOptions}</select>
+        </div>
+        ${buildDiagramSVG(frag)}
+        <div class="mohs-divisoes-list">${renderMohsDivisoesRows(frag, letter)}</div>
+        <div class="mohs-hint">Clique num setor do desenho para marcar/desmarcar tumor na margem. Repita o número do cassete para agrupar partes num mesmo cassete.</div>
+    </div>`;
+}
+
+function renderMohsMedidasRow(frag) {
+    return `
+    <div class="cong-inline-row">
+        <div class="cong-field-group"><label class="cong-label">Comprimento (cm)</label><input class="cong-input mohs-med" data-dim="c" value="${esc(frag.medidas.c)}" placeholder="_"></div>
+        <div class="cong-field-group"><label class="cong-label">Largura (cm)</label><input class="cong-input mohs-med" data-dim="l" value="${esc(frag.medidas.l)}" placeholder="_"></div>
+        <div class="cong-field-group"><label class="cong-label">Altura/Espessura (cm)</label><input class="cong-input mohs-med" data-dim="a" value="${esc(frag.medidas.a)}" placeholder="_"></div>
+    </div>`;
+}
+
+function renderMohsPrincipalCard(p) {
+    return `
+    <div class="cong-peca-card mohs-peca-card">
         <div class="cong-peca-header mohs-peca-header">
-            <div class="cong-peca-letter">${peca.letter}</div>
-            <input class="cong-input mohs-peca-nome" value="${esc(peca.nome)}" placeholder="${isPrincipal ? 'Nome da peça principal (ex: Pele do nariz)' : 'Nome da ampliação'}">
-            ${!isPrincipal ? `<button class="cong-btn-remove-peca mohs-btn-remove-amp" data-amp="${ampIdx}" title="Remover ampliação">🗑</button>` : ''}
+            <div class="cong-peca-letter">${p.letter}</div>
+            <input class="cong-input mohs-peca-nome" value="${esc(p.nome)}" placeholder="Nome da peça principal (ex: Pele do nariz)">
         </div>
+        ${renderMohsMedidasRow(p)}
         <div class="cong-inline-row">
-            <div class="cong-field-group"><label class="cong-label">Comprimento (cm)</label><input class="cong-input mohs-med" data-dim="c" value="${esc(peca.medidas.c)}" placeholder="_"></div>
-            <div class="cong-field-group"><label class="cong-label">Largura (cm)</label><input class="cong-input mohs-med" data-dim="l" value="${esc(peca.medidas.l)}" placeholder="_"></div>
-            <div class="cong-field-group"><label class="cong-label">Altura/Espessura (cm)</label><input class="cong-input mohs-med" data-dim="a" value="${esc(peca.medidas.a)}" placeholder="_"></div>
-        </div>
-        ${isPrincipal ? `
-        <div class="cong-inline-row">
-            <div class="cong-field-group"><label class="cong-label">Nome do debulking</label><input class="cong-input mohs-deb-nome" value="${esc(peca.debulkingNome)}"></div>
-            <div class="cong-field-group"><label class="cong-label">Debulking — comprimento (cm)</label><input class="cong-input mohs-debmed" data-dim="c" value="${esc(peca.debulkingMedidas.c)}" placeholder="_"></div>
-            <div class="cong-field-group"><label class="cong-label">Debulking — largura (cm)</label><input class="cong-input mohs-debmed" data-dim="l" value="${esc(peca.debulkingMedidas.l)}" placeholder="_"></div>
-        </div>` : ''}
-        <div class="mohs-divisoes-section">
-            <div class="mohs-divisoes-headrow">
-                <label class="cong-label">Divisões da peça (quadrantes ou piques do cirurgião)</label>
-                <select class="cong-select mohs-num-divisoes">${numOptions}</select>
+            <div class="cong-field-group"><label class="cong-label">Nome do debulking</label><input class="cong-input mohs-deb-nome" value="${esc(p.debulkingNome)}"></div>
+            <div class="cong-field-group"><label class="cong-label">Debulking — comprimento (cm)</label><input class="cong-input mohs-debmed" data-dim="c" value="${esc(p.debulkingMedidas.c)}" placeholder="_"></div>
+            <div class="cong-field-group"><label class="cong-label">Debulking — largura (cm)</label><input class="cong-input mohs-debmed" data-dim="l" value="${esc(p.debulkingMedidas.l)}" placeholder="_"></div>
+            <div class="cong-field-group">
+                <label class="cong-label">Cassete do debulking</label>
+                <span class="mohs-div-cassete-wrap">
+                    <span class="mohs-div-cassete-letter">${p.letter}</span>
+                    <input class="cong-input mohs-div-cassete mohs-deb-cassete" value="${esc(p.debulkingCassete)}" placeholder="nº">
+                </span>
             </div>
-            ${buildDiagramSVG(peca)}
-            <div class="mohs-divisoes-list">${renderMohsDivisoesRows(peca)}</div>
-            <div class="mohs-hint">Clique num setor do desenho para marcar/desmarcar tumor na margem.</div>
         </div>
+        ${renderMohsDivisoesSection(p, p.letter)}
+    </div>`;
+}
+
+function renderMohsFragBlock(frag, letter, fi, multi) {
+    return `
+    <div class="mohs-frag-block" data-frag="${fi}">
+        ${multi ? `
+        <div class="mohs-frag-head">
+            <span class="mohs-frag-title">Fragmento ${fi + 1}</span>
+            <button class="mohs-remove-frag" data-frag="${fi}" title="Remover fragmento">✕</button>
+        </div>` : ''}
+        ${renderMohsMedidasRow(frag)}
+        ${renderMohsDivisoesSection(frag, letter)}
+    </div>`;
+}
+
+function renderMohsAmpCard(amp, ai) {
+    const multi = amp.fragmentos.length > 1;
+    return `
+    <div class="cong-peca-card mohs-peca-card mohs-amp-card" data-amp="${ai}">
+        <div class="cong-peca-header mohs-peca-header">
+            <div class="cong-peca-letter">${amp.letter}</div>
+            <input class="cong-input mohs-peca-nome" value="${esc(amp.nome)}" placeholder="Nome da ampliação">
+            <button class="cong-btn-remove-peca mohs-btn-remove-amp" data-amp="${ai}" title="Remover ampliação">🗑</button>
+        </div>
+        ${amp.fragmentos.map((f, fi) => renderMohsFragBlock(f, amp.letter, fi, multi)).join('')}
+        <button class="btn btn-outline mohs-add-frag">+ Adicionar fragmento nesta ampliação</button>
     </div>`;
 }
 
@@ -312,14 +513,14 @@ function renderMohs() {
             </div>
         </div>
 
-        <div id="mohsPecaPrincipal">${renderMohsPecaCard(d.pecaPrincipal, true, -1)}</div>
+        <div id="mohsPecaPrincipal">${renderMohsPrincipalCard(d.pecaPrincipal)}</div>
 
         <datalist id="mohsTintaList">${MOHS_TINTAS.map(t => `<option value="${t.nome}">`).join('')}</datalist>
 
         <div class="mohs-ampliacoes-section">
             <div class="mohs-ampliacoes-title">Ampliações de margem</div>
             ${showAmpliacoes ? '' : `<div class="mohs-ampliacoes-hint">Marque tumor em alguma margem da peça principal para habilitar ampliações, ou adicione manualmente.</div>`}
-            <div id="mohsAmpliacoesList">${d.ampliacoes.map((a, ai) => renderMohsPecaCard(a, false, ai)).join('')}</div>
+            <div id="mohsAmpliacoesList">${d.ampliacoes.map((a, ai) => renderMohsAmpCard(a, ai)).join('')}</div>
             <button class="cong-btn-add-peca btn btn-outline" id="mohsAddAmpliacao">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
                 Adicionar ampliação
@@ -358,47 +559,52 @@ function updateMohsPreview() {
     if (el) el.textContent = buildMohsText();
 }
 
-function updateMohsDiagram(container, peca) {
+function updateMohsDiagram(container, frag) {
     const wrap = container.querySelector('.mohs-diagram-wrap');
-    if (wrap) wrap.outerHTML = buildDiagramSVG(peca);
-    container.querySelectorAll('.mohs-div-swatch').forEach((sw, i) => { sw.style.background = tintaHex(peca.divisoes[i].cor); });
-    attachSectorClicks(container, peca);
+    if (wrap) wrap.outerHTML = buildDiagramSVG(frag);
+    container.querySelectorAll('.mohs-divisoes-list .mohs-div-swatch').forEach((sw, i) => { sw.style.background = tintaHex(frag.divisoes[i].cor); });
+    attachSectorClicks(container, frag);
 }
 
-function attachSectorClicks(container, peca) {
+function attachSectorClicks(container, frag) {
     container.querySelectorAll('.mohs-sector').forEach(sec => {
         sec.addEventListener('click', () => {
             const idx = parseInt(sec.dataset.mohsSector);
-            peca.divisoes[idx].tumor = !peca.divisoes[idx].tumor;
+            frag.divisoes[idx].tumor = !frag.divisoes[idx].tumor;
             renderRoot();
         });
     });
 }
 
-function attachPecaCardEvents(container, peca) {
+// container: elemento que envolve APENAS este fragmento (medidas + divisões + desenho)
+function attachFragEvents(container, frag, opts) {
     if (!container) return;
-    container.querySelector('.mohs-peca-nome')?.addEventListener('input', e => { peca.nome = e.target.value; updateMohsPreview(); });
-    container.querySelectorAll('.mohs-med').forEach(inp => inp.addEventListener('input', e => { peca.medidas[e.target.dataset.dim] = e.target.value; updateMohsPreview(); }));
-    container.querySelector('.mohs-deb-nome')?.addEventListener('input', e => { peca.debulkingNome = e.target.value; updateMohsPreview(); });
-    container.querySelectorAll('.mohs-debmed').forEach(inp => inp.addEventListener('input', e => { peca.debulkingMedidas[e.target.dataset.dim] = e.target.value; updateMohsPreview(); }));
+    opts = opts || {};
+    container.querySelectorAll('.mohs-med').forEach(inp => inp.addEventListener('input', e => { frag.medidas[e.target.dataset.dim] = e.target.value; updateMohsPreview(); }));
     container.querySelector('.mohs-num-divisoes')?.addEventListener('change', e => {
-        peca.numDivisoes = parseInt(e.target.value);
-        peca.divisoes = buildDivisoes(peca.shape, peca.numDivisoes);
+        frag.numDivisoes = parseInt(e.target.value);
+        const start = opts.casseteStart ? opts.casseteStart() : 1;
+        frag.divisoes = buildDivisoes(frag.shape, frag.numDivisoes, start);
+        if (opts.afterNumChange) opts.afterNumChange();
         renderRoot();
     });
     container.querySelectorAll('.mohs-div-label').forEach(inp => inp.addEventListener('input', e => {
-        peca.divisoes[parseInt(e.target.dataset.div)].label = e.target.value;
-        updateMohsDiagram(container, peca); updateMohsPreview();
+        frag.divisoes[parseInt(e.target.dataset.div)].label = e.target.value;
+        updateMohsDiagram(container, frag); updateMohsPreview();
     }));
     container.querySelectorAll('.mohs-div-cor').forEach(inp => inp.addEventListener('input', e => {
-        peca.divisoes[parseInt(e.target.dataset.div)].cor = e.target.value;
-        updateMohsDiagram(container, peca); updateMohsPreview();
+        frag.divisoes[parseInt(e.target.dataset.div)].cor = e.target.value;
+        updateMohsDiagram(container, frag); updateMohsPreview();
+    }));
+    container.querySelectorAll('.mohs-div-cassete:not(.mohs-deb-cassete)').forEach(inp => inp.addEventListener('input', e => {
+        frag.divisoes[parseInt(e.target.dataset.div)].cassete = e.target.value;
+        updateMohsPreview();
     }));
     container.querySelectorAll('.mohs-div-tumor').forEach(chk => chk.addEventListener('change', e => {
-        peca.divisoes[parseInt(e.target.dataset.div)].tumor = e.target.checked;
+        frag.divisoes[parseInt(e.target.dataset.div)].tumor = e.target.checked;
         renderRoot();
     }));
-    attachSectorClicks(container, peca);
+    attachSectorClicks(container, frag);
 }
 
 function attachMohsEvents() {
@@ -414,14 +620,48 @@ function attachMohsEvents() {
     document.getElementById('mohsToggleInforme')?.addEventListener('click', () => { d.informeClinicoVisible = !d.informeClinicoVisible; renderRoot(); });
     document.getElementById('mohsInformeClinico')?.addEventListener('input', e => { d.informeClinico = e.target.value; updateMohsPreview(); });
 
-    attachPecaCardEvents(document.getElementById('mohsPecaPrincipal'), d.pecaPrincipal);
-    document.querySelectorAll('#mohsAmpliacoesList .mohs-peca-card').forEach((card, ai) => {
-        attachPecaCardEvents(card, d.ampliacoes[ai]);
+    // Peça principal
+    const p = d.pecaPrincipal;
+    const principalEl = document.getElementById('mohsPecaPrincipal');
+    if (principalEl) {
+        principalEl.querySelector('.mohs-peca-nome')?.addEventListener('input', e => { p.nome = e.target.value; updateMohsPreview(); });
+        principalEl.querySelector('.mohs-deb-nome')?.addEventListener('input', e => { p.debulkingNome = e.target.value; updateMohsPreview(); });
+        principalEl.querySelectorAll('.mohs-debmed').forEach(inp => inp.addEventListener('input', e => { p.debulkingMedidas[e.target.dataset.dim] = e.target.value; updateMohsPreview(); }));
+        principalEl.querySelector('.mohs-deb-cassete')?.addEventListener('input', e => { p.debulkingCassete = e.target.value; updateMohsPreview(); });
+        attachFragEvents(principalEl, p, {
+            casseteStart: () => 1,
+            afterNumChange: () => { p.debulkingCassete = String(p.numDivisoes + 1); },
+        });
+    }
+
+    // Ampliações
+    document.querySelectorAll('#mohsAmpliacoesList .mohs-amp-card').forEach(card => {
+        const ai = parseInt(card.dataset.amp);
+        const amp = d.ampliacoes[ai];
+        if (!amp) return;
+        card.querySelector('.mohs-peca-nome')?.addEventListener('input', e => { amp.nome = e.target.value; updateMohsPreview(); });
+        card.querySelectorAll('.mohs-frag-block').forEach(block => {
+            const fi = parseInt(block.dataset.frag);
+            attachFragEvents(block, amp.fragmentos[fi], {
+                casseteStart: () => ampMaxCassete(amp, fi) + 1,
+            });
+        });
+        card.querySelector('.mohs-add-frag')?.addEventListener('click', () => {
+            const start = ampMaxCassete(amp, -1) + 1;
+            amp.fragmentos.push(defaultMohsFrag('halfmoon', start));
+            renderRoot();
+        });
+        card.querySelectorAll('.mohs-remove-frag').forEach(btn => btn.addEventListener('click', () => {
+            if (amp.fragmentos.length <= 1) return;
+            if (!confirm('Remover este fragmento?')) return;
+            amp.fragmentos.splice(parseInt(btn.dataset.frag), 1);
+            renderRoot();
+        }));
     });
 
     document.getElementById('mohsAddAmpliacao')?.addEventListener('click', () => {
         const idx = d.ampliacoes.length;
-        d.ampliacoes.push(defaultMohsPeca(String.fromCharCode(66 + idx), 'halfmoon', { comDebulking: false }));
+        d.ampliacoes.push(defaultMohsAmpliacao(String.fromCharCode(66 + idx)));
         renderRoot();
     });
     document.querySelectorAll('.mohs-btn-remove-amp').forEach(btn => {
