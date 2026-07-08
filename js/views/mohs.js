@@ -64,6 +64,7 @@ function defaultMohsFrag(shape, casseteStart) {
     const numDivisoes = shape === 'circle' ? 4 : 2;
     return {
         shape, // 'circle' | 'halfmoon'
+        nome: '',
         medidas: { c: '', l: '', a: '' },
         numDivisoes,
         divisoes: buildDivisoes(shape, numDivisoes, casseteStart),
@@ -166,8 +167,13 @@ function buildTintasFrase(frag) {
         if (!g) { g = { key, cor: d.cor.trim(), labels: [] }; groups.push(g); }
         g.labels.push(d.label);
     }
-    const frases = groups.map(g => `as margens ${joinComma(g.labels)} foram tingidas de ${g.cor}`);
-    return capitalize(frases.join(' e ')) + '.';
+    const frases = groups.map(g => {
+        const cor = g.cor.toLowerCase();
+        return g.labels.length > 1
+            ? `as margens ${joinComma(g.labels)} foram tingidas de ${cor}`
+            : `a margem ${g.labels[0]} foi tingida de ${cor}`;
+    });
+    return capitalize(joinComma(frases)) + '.';
 }
 
 /* ---------- Cassetes (agrupamento por número) ---------- */
@@ -221,7 +227,7 @@ function casseteGroupId(letter, key) {
     return letter + (isNaN(n) ? '?' : n);
 }
 
-function casseteGroupDesc(group, multiFrag, debNome) {
+function casseteGroupDesc(group, multiFrag, debNome, fragNames) {
     const margens = group.entries.filter(e => e.kind === 'margem');
     const debs = group.entries.filter(e => e.kind === 'deb');
     const parts = [];
@@ -232,7 +238,10 @@ function casseteGroupDesc(group, multiFrag, debNome) {
                 if (!byFrag.has(e.fragIdx)) byFrag.set(e.fragIdx, []);
                 byFrag.get(e.fragIdx).push(e.label);
             }
-            const subs = [...byFrag.entries()].map(([fi, labels]) => `fragmento ${fi + 1}, ${margemDesc(labels)}`);
+            const subs = [...byFrag.entries()].map(([fi, labels]) => {
+                const fragName = (fragNames && fragNames[fi]) || ('fragmento ' + (fi + 1));
+                return `${fragName}, ${margemDesc(labels)}`;
+            });
             parts.push(subs.join('; ') + '/profunda');
         } else {
             parts.push(margemDesc(margens.map(e => e.label)) + '/profunda');
@@ -255,9 +264,14 @@ function ampCasseteEntries(amp) {
     return entries;
 }
 
-function buildMohsCassetes(letter, entries, multiFrag, debNome) {
+function buildMohsCassetes(letter, entries, multiFrag, debNome, fragNames) {
     return buildCasseteGroups(entries).map(g =>
-        `${casseteGroupId(letter, g.key)} – ${casseteGroupDesc(g, multiFrag, debNome)}`);
+        `${casseteGroupId(letter, g.key)} – ${casseteGroupDesc(g, multiFrag, debNome, fragNames)}`);
+}
+
+// Nome de exibição de um fragmento nos cassetes (minúsculo "fragmento N" por padrão)
+function fragCasseteName(f, i) {
+    return (f.nome && f.nome.trim()) ? f.nome.trim() : ('fragmento ' + (i + 1));
 }
 
 /* ---------- Descrição / resultado ---------- */
@@ -275,7 +289,7 @@ function buildMohsPecaDescricao(p) {
     corpo += ' Aos cortes, o tecido é elástico e brancacento.';
     const numCassetes = buildCasseteGroups(principalCasseteEntries(p)).length;
     corpo += ` Todo material foi enviado para estudo histológico – ${numCassetes}B/VF.`;
-    return `${nome}: ${corpo}`;
+    return `${p.letter}) ${nome}: ${corpo}`;
 }
 
 function buildMohsAmpDescricao(amp) {
@@ -297,31 +311,56 @@ function buildMohsAmpDescricao(amp) {
     corpo += ' Aos cortes, o tecido é elástico e brancacento.';
     const numCassetes = buildCasseteGroups(ampCasseteEntries(amp)).length;
     corpo += ` Todo material foi enviado para estudo histológico – ${numCassetes}B/VF.`;
-    return `${nome}: ${corpo}`;
+    return `${amp.letter}) ${nome}: ${corpo}`;
 }
 
-function buildMohsResultLines(fragLike, tipoTumor) {
+// Resultado da peça principal — reporta por quadrante (comprometidos primeiro)
+function buildPrincipalResultLines(p, tipoTumor) {
     const tumorNome = (tipoTumor || '').trim() || 'neoplasia';
-    const livres = fragLike.divisoes.filter(d => !d.tumor).map(d => d.label);
-    const comprometidas = fragLike.divisoes.filter(d => d.tumor).map(d => d.label);
+    const comp = p.divisoes.filter(d => d.tumor).map(d => d.label);
+    const livre = p.divisoes.filter(d => !d.tumor).map(d => d.label);
     const lines = [];
-    if (livres.length) lines.push(`Margens cirúrgicas ${joinComma(livres)} e profunda livres de ${tumorNome}.`);
-    if (comprometidas.length) {
-        const plural = comprometidas.length > 1;
-        lines.push(`Margem${plural ? 's' : ''} ${joinComma(comprometidas)} comprometida${plural ? 's' : ''} por ${tumorNome}.`);
+    if (comp.length) {
+        const pl = comp.length > 1;
+        lines.push(`${pl ? 'Margens dos quadrantes' : 'Margem do quadrante'} ${joinComma(comp)} comprometida${pl ? 's' : ''} por ${tumorNome}.`);
+    }
+    if (livre.length) {
+        const pl = livre.length > 1;
+        lines.push(`${pl ? 'Margens dos quadrantes' : 'Margem do quadrante'} ${joinComma(livre)} livre${pl ? 's' : ''} de comprometimento neoplásico.`);
     }
     if (!lines.length) lines.push('[Resultado]');
     return lines;
 }
 
+// Resultado de uma ampliação — reporta por fragmento (pelo nome), comprometidos primeiro
 function buildAmpResultLines(amp, tipoTumor) {
-    if (amp.fragmentos.length === 1) return buildMohsResultLines(amp.fragmentos[0], tipoTumor);
-    const lines = [];
-    amp.fragmentos.forEach((f, fi) => {
-        for (const r of buildMohsResultLines(f, tipoTumor)) {
-            lines.push(`Fragmento ${fi + 1}: ${r.charAt(0).toLowerCase()}${r.slice(1)}`);
-        }
+    const tumorNome = (tipoTumor || '').trim() || 'neoplasia';
+    const multi = amp.fragmentos.length > 1;
+    const nameOf = (f, i) => (f.nome && f.nome.trim()) ? f.nome.trim() : (multi ? `Fragmento ${i + 1}` : '');
+    const comp = [], livre = [];
+    amp.fragmentos.forEach((f, i) => {
+        (f.divisoes.some(d => d.tumor) ? comp : livre).push(nameOf(f, i));
     });
+    const lines = [];
+    if (comp.length) {
+        const names = comp.filter(n => n);
+        const pl = comp.length > 1;
+        lines.push(capitalize(names.length
+            ? `${joinComma(names)} comprometida${pl ? 's' : ''} por ${tumorNome}.`
+            : `Comprometida${pl ? 's' : ''} por ${tumorNome}.`));
+    }
+    if (livre.length) {
+        if (!comp.length) {
+            lines.push('Livre de comprometimento neoplásico.');
+        } else {
+            const names = livre.filter(n => n);
+            const pl = livre.length > 1;
+            lines.push(capitalize(names.length
+                ? `${joinComma(names)} livre${pl ? 's' : ''} de comprometimento neoplásico.`
+                : `Livre${pl ? 's' : ''} de comprometimento neoplásico.`));
+        }
+    }
+    if (!lines.length) lines.push('[Resultado]');
     return lines;
 }
 
@@ -348,16 +387,17 @@ function buildMohsText() {
     for (const amp of d.ampliacoes) {
         lines.push('');
         lines.push(buildMohsAmpDescricao(amp));
-        for (const c of buildMohsCassetes(amp.letter, ampCasseteEntries(amp), amp.fragmentos.length > 1)) lines.push(c);
+        const fragNames = amp.fragmentos.map((f, i) => fragCasseteName(f, i));
+        for (const c of buildMohsCassetes(amp.letter, ampCasseteEntries(amp), amp.fragmentos.length > 1, null, fragNames)) lines.push(c);
     }
 
     lines.push('');
     lines.push('Resultado do exame de congelação');
-    lines.push(`${p.nome || '[Nome da Peça]'}: `);
-    for (const r of buildMohsResultLines(p, d.tipoTumor)) lines.push(`- ${r}`);
+    lines.push(`${p.letter}) ${p.nome || '[Nome da Peça]'}: `);
+    for (const r of buildPrincipalResultLines(p, d.tipoTumor)) lines.push(`- ${r}`);
     lines.push('');
     for (const amp of d.ampliacoes) {
-        lines.push(`${amp.nome || '[Nome da Ampliação]'}: `);
+        lines.push(`${amp.letter}) ${amp.nome || '[Nome da Ampliação]'}: `);
         for (const r of buildAmpResultLines(amp, d.tipoTumor)) lines.push(`- ${r}`);
         lines.push('');
     }
@@ -437,11 +477,11 @@ function renderMohsPrincipalCard(p) {
 function renderMohsFragBlock(frag, letter, fi, multi) {
     return `
     <div class="mohs-frag-block" data-frag="${fi}">
-        ${multi ? `
         <div class="mohs-frag-head">
-            <span class="mohs-frag-title">Fragmento ${fi + 1}</span>
-            <button class="mohs-remove-frag" data-frag="${fi}" title="Remover fragmento">✕</button>
-        </div>` : ''}
+            <span class="mohs-frag-title">${multi ? 'Fragmento ' + (fi + 1) : 'Peça'}</span>
+            <input class="cong-input mohs-frag-nome" data-frag="${fi}" value="${esc(frag.nome || '')}" placeholder="Nome do fragmento (ex: Lado direito) — vai para o cassete/resultado">
+            ${multi ? `<button class="mohs-remove-frag" data-frag="${fi}" title="Remover fragmento">✕</button>` : ''}
+        </div>
         ${renderMohsMedidasRow(frag)}
         ${renderMohsDivisoesSection(frag, letter)}
     </div>`;
@@ -642,6 +682,7 @@ function attachMohsEvents() {
         card.querySelector('.mohs-peca-nome')?.addEventListener('input', e => { amp.nome = e.target.value; updateMohsPreview(); });
         card.querySelectorAll('.mohs-frag-block').forEach(block => {
             const fi = parseInt(block.dataset.frag);
+            block.querySelector('.mohs-frag-nome')?.addEventListener('input', e => { amp.fragmentos[fi].nome = e.target.value; updateMohsPreview(); });
             attachFragEvents(block, amp.fragmentos[fi], {
                 casseteStart: () => ampMaxCassete(amp, fi) + 1,
             });
