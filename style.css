@@ -989,6 +989,14 @@ header .date { color: var(--text-muted); font-size: 0.85rem; text-transform: cap
 .cong-field-group { display: flex; flex-direction: column; gap: 6px; }
 .cong-laminas { width: 90px; }
 
+/* Blocos: valor derivado do mapeamento de cassetes (somente leitura) */
+.cong-blocos-auto {
+    background: rgba(15, 23, 42, 0.45); border: 1.5px dashed var(--border);
+    border-radius: 8px; color: var(--text); font-size: 0.93rem; font-weight: 600;
+    padding: 10px 13px; min-width: 72px; text-align: center;
+    font-variant-numeric: tabular-nums; cursor: default; user-select: none;
+}
+
 /* Toggle switch */
 .cong-toggle { display: flex; align-items: center; gap: 10px; cursor: pointer; padding: 8px 0; }
 .cong-toggle input { display: none; }

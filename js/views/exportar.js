@@ -67,7 +67,7 @@ function buildCongHTML() {
     h += `<div class="laudo-title">Exame Transoperatório (Congelação)</div>`;
     for (const p of d.pecas) {
         const inc = p.tudoIncluido ? 'Todo material foi enviado para exame histológico' : 'Material parcialmente enviado para exame histológico';
-        const cassetesStr = `${inc} - ${p.blocos || 1}B/${p.fragmentos || 'V'}F.`;
+        const cassetesStr = `${inc} - ${computeBlocos(p)}B/${p.fragmentos || 'V'}F.`;
         const macro = (p.macroscopia || '').trim();
         const corpo = (p.fraseRecebimento !== false) ? `${FRASE_RECEBIMENTO} ${macro}`.trim() : macro;
         h += `<div class="laudo-peca">`;

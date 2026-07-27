@@ -57,3 +57,14 @@ function stripCasseteLetter(letter, val) {
     const v = String(val || '');
     return v.toUpperCase().startsWith(letter.toUpperCase()) ? v.slice(letter.length) : v;
 }
+// Nº de blocos da peça = maior número do mapeamento de cassetes
+// (na prática, o último cassete digitado). Mínimo de 1.
+function computeBlocos(peca) {
+    let max = 0;
+    for (const c of (peca.cassetes || [])) {
+        const ref = (c.fim && String(c.fim).trim()) ? c.fim : c.inicio;
+        const n = parseInt(stripCasseteLetter(peca.letter, ref), 10);
+        if (!isNaN(n) && n > max) max = n;
+    }
+    return max > 0 ? max : 1;
+}

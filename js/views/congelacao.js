@@ -3,7 +3,7 @@ const FRASE_RECEBIMENTO = 'O material foi recebido a fresco para exame de congel
 
 function defaultPeca(idx) {
     const letter = String.fromCharCode(65 + idx);
-    return { letter, nome: '', macroscopia: '', blocos: 1, fragmentos: 'V', tudoIncluido: true,
+    return { letter, nome: '', macroscopia: '', fragmentos: 'V', tudoIncluido: true,
              fraseRecebimento: true,
              cassetes: [{ inicio: '1', fim: '', descricao: '' }], resultado: '' };
 }
@@ -45,7 +45,7 @@ function buildCongText() {
     for (const p of d.pecas) {
         lines.push('');
         const inc = p.tudoIncluido ? 'Todo material foi enviado para exame histológico' : 'Material parcialmente enviado para exame histológico';
-        const cassetesStr = ` ${inc} - ${p.blocos||1}B/${p.fragmentos||'V'}F.`;
+        const cassetesStr = ` ${inc} - ${computeBlocos(p)}B/${p.fragmentos||'V'}F.`;
         const macro = (p.macroscopia || '').trim();
         const corpo = (p.fraseRecebimento !== false) ? `${FRASE_RECEBIMENTO} ${macro}`.trim() : macro;
         lines.push(`${p.letter}) ${p.nome || '[Nome da Peça]'}: ${corpo}${cassetesStr}`);
@@ -119,7 +119,7 @@ function renderCongelacao() {
             <div class="cong-inline-row">
                 <div class="cong-field-group">
                     <label class="cong-label">Blocos (B)</label>
-                    <input class="cong-input cong-blocos" type="number" min="1" value="${p.blocos}" data-peca="${pi}" id="congBlocos${pi}">
+                    <div class="cong-blocos-auto" id="congBlocos${pi}" title="Calculado automaticamente a partir do último cassete mapeado">${computeBlocos(p)}</div>
                 </div>
                 <div class="cong-field-group">
                     <label class="cong-label">Fragmentos (F)</label>
@@ -239,6 +239,11 @@ function renderCongelacao() {
 }
 
 function updateCongPreview() {
+    // Blocos é derivado do mapeamento de cassetes — atualiza junto com a prévia
+    congDoc.pecas.forEach((p, pi) => {
+        const b = document.getElementById('congBlocos' + pi);
+        if (b) b.textContent = computeBlocos(p);
+    });
     const el = document.getElementById('congPreviewText');
     if (el) el.textContent = buildCongText();
 }
@@ -296,7 +301,6 @@ function attachCongEvents() {
             updateCongPreview();
         });
     });
-    document.querySelectorAll('.cong-blocos').forEach(inp => inp.addEventListener('input', e => { congDoc.pecas[parseInt(e.target.dataset.peca)].blocos = Math.max(1, parseInt(e.target.value)||1); updateCongPreview(); }));
     document.querySelectorAll('.cong-fragmentos').forEach(inp => inp.addEventListener('input', e => { congDoc.pecas[parseInt(e.target.dataset.peca)].fragmentos = e.target.value.toUpperCase() || 'V'; updateCongPreview(); }));
     document.querySelectorAll('input[data-field="tudoIncluido"]').forEach(chk => {
         chk.addEventListener('change', e => {
