@@ -353,9 +353,14 @@ function attachCongEvents() {
     });
     document.getElementById('congSaveModelo')?.addEventListener('click', async () => {
         const btn = document.getElementById('congSaveModelo');
+        const orig = btn ? btn.innerHTML : '';
         if (btn) btn.textContent = 'Salvando...';
-        await saveModelo();
-        if (btn) { const orig = btn.innerHTML; btn.textContent = '✓ Salvo!'; setTimeout(() => { btn.innerHTML = orig; }, 2000); }
+        try {
+            await saveModelo();
+            if (btn) { btn.textContent = '✓ Salvo!'; setTimeout(() => { btn.innerHTML = orig; }, 2000); }
+        } catch {
+            if (btn) btn.innerHTML = orig;
+        }
     });
     document.getElementById('congExportHtml')?.addEventListener('click', () => {
         saveCongSuggestion('cirurgiao', congDoc.cirurgiao);

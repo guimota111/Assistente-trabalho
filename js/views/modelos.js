@@ -1,7 +1,14 @@
 /* ──────────── Modelos Salvos ──────────── */
 async function saveModelo() {
     if (congDoc.pecas.length === 0) { alert('Adicione ao menos uma peça antes de salvar.'); return; }
-    if (!modelosCache) modelosCache = [];
+    if (!modelosCache) {
+        // Nunca sobrescrever o documento no servidor sem antes carregar os modelos existentes
+        await loadModelos();
+        if (!modelosCache) {
+            alert('Não foi possível carregar seus modelos salvos — o novo modelo não foi salvo para não apagar os anteriores. Verifique sua conexão e tente novamente.');
+            return;
+        }
+    }
     const today = new Date();
     const dateStr = `${String(today.getDate()).padStart(2, '0')}/${String(today.getMonth() + 1).padStart(2, '0')}`;
     modelosCache.unshift({
@@ -67,6 +74,11 @@ function modeloLabel(modelo) {
 
 function renderModelos() {
     if (!modelosCache) {
+        if (modelosError) {
+            return `<div class="modelos-empty">Não foi possível carregar os modelos salvos.<br>
+                <span style="font-size:0.8rem;color:var(--text-muted)">${esc(modelosError.message || 'Erro de conexão')}</span><br><br>
+                <button class="btn btn-outline" id="modelosRetry">Tentar novamente</button></div>`;
+        }
         return `<div class="modelos-empty">Carregando...</div>`;
     }
     if (modelosCache.length === 0) {
@@ -93,6 +105,14 @@ function renderModelos() {
 }
 
 function attachModelosEvents() {
+    document.getElementById('modelosRetry')?.addEventListener('click', async () => {
+        modelosCache = null;
+        modelosError = null;
+        renderRoot();
+        await loadModelos();
+        renderRoot();
+    });
+
     document.querySelectorAll('.modelo-row').forEach(row => {
         row.addEventListener('click', e => {
             if (e.target.closest('.modelo-btn-delete')) return;

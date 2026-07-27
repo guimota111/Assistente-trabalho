@@ -13,3 +13,4 @@ let currentView  = 'congelacao'; // 'congelacao' | 'mohs' | 'modelos'
 let currentUser  = null;
 let authReady    = false;
 let modelosCache = null;
+let modelosError = null;
