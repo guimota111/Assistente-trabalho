@@ -1,5 +1,5 @@
 /* ──────────── Congelação ──────────── */
-const FRASE_RECEBIMENTO = 'O material foi recebido a fresco para exame de congelação e consiste em';
+const FRASE_RECEBIMENTO = 'o material foi recebido a fresco para exame de congelação e consiste em';
 
 function defaultPeca(idx) {
     const letter = String.fromCharCode(65 + idx);

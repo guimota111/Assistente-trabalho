@@ -930,6 +930,13 @@ header .date { color: var(--text-muted); font-size: 0.85rem; text-transform: cap
 .mascara-field { display: flex; flex-direction: column; gap: 6px; }
 .mascara-row2 { display: flex; gap: 14px; flex-wrap: wrap; }
 .mascara-row2 .mascara-field { flex: 1; min-width: 180px; }
+.mascara-hint {
+    font-size: 0.8rem; color: var(--text-muted);
+    background: rgba(0, 229, 255, 0.06); border-left: 2px solid var(--primary);
+    padding: 7px 10px; border-radius: 4px;
+}
+.mascara-field-qtd { max-width: 220px; }
+
 /* Seletor segmentado (tipo de ressecção, lado) */
 .mascara-seg { display: flex; gap: 0; border: 1.5px solid var(--border); border-radius: 8px; overflow: hidden; width: fit-content; }
 .mascara-seg-btn {

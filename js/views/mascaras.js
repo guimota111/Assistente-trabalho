@@ -2,8 +2,24 @@
 
 // Registro das máscaras disponíveis (novas máscaras entram aqui)
 const MASCARAS = [
-    { tipo: 'tireoide', label: 'Tireoide', icon: '🦋' },
+    { tipo: 'tireoide',   label: 'Tireoide',   icon: '🦋' },
+    { tipo: 'fragmentos', label: 'Fragmentos', icon: '🧫' },
 ];
+
+// Despacho por tipo de máscara
+function defaultMascaraData(tipo) {
+    if (tipo === 'fragmentos') return defaultFragmentosData();
+    return defaultTireoideData();
+}
+function buildMascaraMacro(tipo, d) {
+    if (tipo === 'fragmentos') return buildFragmentosMacro(d);
+    return buildTireoideMacro(d);
+}
+// Nome sugerido para a peça; vazio = topografia preenchida pelo usuário
+function mascaraNomePeca(tipo, d) {
+    if (tipo === 'tireoide') return tireoideNomePeca(d);
+    return '';
+}
 
 /* ---------- Tireoide ---------- */
 const TIREOIDE_REGIOES = [
@@ -95,11 +111,50 @@ function buildTireoideMacro(d) {
     return lines.join('\n');
 }
 
+/* ---------- Fragmentos ---------- */
+const FRAGMENTOS_DESC_PADRAO = 'irregulares, elásticos e amarelados';
+
+function defaultFragmentosData() {
+    return {
+        quantidade: '',
+        descricao: FRAGMENTOS_DESC_PADRAO,
+        maior: { a: '', b: '' },
+        menor: { a: '', b: '' },
+    };
+}
+
+// Um único fragmento? Aceita "1", "01" e "um"
+function fragmentoUnico(d) {
+    const q = String(d.quantidade || '').trim().toLowerCase();
+    return q === '1' || q === '01' || q === 'um';
+}
+
+function fmtMedidas2(m) {
+    const a = String(m.a || '').trim();
+    const b = String(m.b || '').trim();
+    if (!a && !b) return '[medidas] cm';
+    return `${a || '_'} x ${b || '_'} cm`;
+}
+
+// Corpo da macroscopia (o que vem depois de "consiste em")
+function buildFragmentosMacro(d) {
+    const qtd = String(d.quantidade || '').trim() || '[quantidade]';
+    const desc = String(d.descricao || '').trim();
+    const unico = fragmentoUnico(d);
+    let s = `${qtd} ${unico ? 'fragmento' : 'fragmentos'}`;
+    if (desc) s += ` ${desc}`;
+    s += unico
+        ? `, medindo ${fmtMedidas2(d.maior)}.`
+        : `, medindo o maior ${fmtMedidas2(d.maior)}, e o menor ${fmtMedidas2(d.menor)}.`;
+    return s;
+}
+
 /* ---------- Render do modal ---------- */
 function renderMascaraModal() {
     if (!mascaraState) return '';
     if (mascaraState.phase === 'picker') return renderMascaraPicker();
     if (mascaraState.tipo === 'tireoide') return renderTireoideForm();
+    if (mascaraState.tipo === 'fragmentos') return renderFragmentosForm();
     return '';
 }
 
@@ -226,6 +281,14 @@ function renderTireoideForm() {
                     <pre class="mascara-preview-text" id="mascPreview">${esc(buildTireoideMacro(d))}</pre>
                 </div>
             </div>
+            ${renderMascaraFooter()}
+        </div>
+    </div>`;
+}
+
+// Rodapé comum a todas as máscaras
+function renderMascaraFooter() {
+    return `
             <div class="mascara-modal-foot">
                 <label class="mascara-target">Aplicar na peça
                     <select class="cong-input" id="mascTarget">
@@ -234,14 +297,70 @@ function renderTireoideForm() {
                 </label>
                 <button class="btn btn-primary" id="mascApply">Preencher peça</button>
                 <button class="btn btn-outline" id="mascBack">Voltar</button>
+            </div>`;
+}
+
+function renderFragmentosForm() {
+    const d = mascaraState.data;
+    const unico = fragmentoUnico(d);
+    const medidasHTML = (grupo, m) => `
+            <div class="mascara-medidas">
+                <input class="cong-input frag-med" data-grupo="${grupo}" data-dim="a" value="${esc(m.a)}" placeholder="__">
+                <span>x</span>
+                <input class="cong-input frag-med" data-grupo="${grupo}" data-dim="b" value="${esc(m.b)}" placeholder="__">
+                <span>cm</span>
+            </div>`;
+
+    return `
+    <div class="mascara-modal-overlay" id="mascaraOverlay">
+        <div class="mascara-modal">
+            <div class="mascara-modal-head">
+                <div class="mascara-modal-title">🧫 Máscara — Fragmentos</div>
+                <button class="mascara-close" id="mascaraClose" title="Fechar">✕</button>
             </div>
+            <div class="mascara-form">
+                <div class="mascara-hint">A topografia é preenchida no campo <strong>Nome da peça</strong>, fora da máscara.</div>
+                <div class="mascara-row2">
+                    <div class="mascara-field mascara-field-qtd">
+                        <label class="cong-label">Quantidade de fragmentos</label>
+                        <input class="cong-input" id="fragQtd" value="${esc(d.quantidade)}" placeholder="Ex: 3">
+                    </div>
+                </div>
+                <div class="mascara-field">
+                    <label class="cong-label">Descrição dos fragmentos</label>
+                    <input class="cong-input" id="fragDesc" value="${esc(d.descricao)}" placeholder="${esc(FRAGMENTOS_DESC_PADRAO)}">
+                </div>
+                <div class="mascara-lobo">
+                    <label class="cong-label" id="fragMaiorLabel">${unico ? 'Medidas (cm)' : 'Maior fragmento — medidas (cm)'}</label>
+                    ${medidasHTML('maior', d.maior)}
+                </div>
+                <div class="mascara-lobo" id="fragMenorBloco"${unico ? ' style="display:none"' : ''}>
+                    <label class="cong-label">Menor fragmento — medidas (cm)</label>
+                    ${medidasHTML('menor', d.menor)}
+                </div>
+                <div class="mascara-preview">
+                    <div class="cong-preview-label">Pré-visualização</div>
+                    <pre class="mascara-preview-text" id="mascPreview">${esc(buildFragmentosMacro(d))}</pre>
+                </div>
+            </div>
+            ${renderMascaraFooter()}
         </div>
     </div>`;
 }
 
 function updateMascPreview() {
     const el = document.getElementById('mascPreview');
-    if (el && mascaraState && mascaraState.tipo === 'tireoide') el.textContent = buildTireoideMacro(mascaraState.data);
+    if (el && mascaraState) el.textContent = buildMascaraMacro(mascaraState.tipo, mascaraState.data);
+}
+
+// Com um único fragmento não há "maior e menor" — alterna sem re-render,
+// para não perder o foco enquanto a quantidade é digitada
+function syncFragmentosUI(d) {
+    const unico = fragmentoUnico(d);
+    const menor = document.getElementById('fragMenorBloco');
+    if (menor) menor.style.display = unico ? 'none' : '';
+    const lbl = document.getElementById('fragMaiorLabel');
+    if (lbl) lbl.textContent = unico ? 'Medidas (cm)' : 'Maior fragmento — medidas (cm)';
 }
 
 /* ---------- Eventos ---------- */
@@ -256,11 +375,13 @@ function attachMascaraEvents() {
         document.querySelectorAll('.mascara-card').forEach(btn => btn.addEventListener('click', () => {
             mascaraState.phase = 'form';
             mascaraState.tipo = btn.dataset.tipo;
-            mascaraState.data = defaultTireoideData();
+            mascaraState.data = defaultMascaraData(btn.dataset.tipo);
             renderRoot();
         }));
         return;
     }
+
+    if (mascaraState.tipo === 'fragmentos') { attachFragmentosEvents(); attachMascaraFooterEvents(); return; }
 
     // Formulário da tireoide
     const d = mascaraState.data;
@@ -295,14 +416,34 @@ function attachMascaraEvents() {
     document.querySelectorAll('.mascara-nod-desc').forEach(inp => inp.addEventListener('input', e => { d.nodulos[parseInt(e.target.dataset.nod)].desc = e.target.value; updateMascPreview(); }));
     document.getElementById('mascAddNod')?.addEventListener('click', () => { d.nodulos.push(defaultNodulo(tireoideRegioesAtivas(d)[0].key)); renderRoot(); });
     document.querySelectorAll('.mascara-nod-remove').forEach(btn => btn.addEventListener('click', () => { d.nodulos.splice(parseInt(btn.dataset.nod), 1); renderRoot(); }));
+    attachMascaraFooterEvents();
+}
+
+function attachFragmentosEvents() {
+    const d = mascaraState.data;
+    document.getElementById('fragQtd')?.addEventListener('input', e => {
+        d.quantidade = e.target.value;
+        syncFragmentosUI(d);
+        updateMascPreview();
+    });
+    document.getElementById('fragDesc')?.addEventListener('input', e => { d.descricao = e.target.value; updateMascPreview(); });
+    document.querySelectorAll('.frag-med').forEach(inp => inp.addEventListener('input', e => {
+        d[e.target.dataset.grupo][e.target.dataset.dim] = e.target.value;
+        updateMascPreview();
+    }));
+}
+
+// Rodapé comum: peça alvo, voltar e aplicar
+function attachMascaraFooterEvents() {
     document.getElementById('mascTarget')?.addEventListener('change', e => { mascaraState.targetPeca = parseInt(e.target.value); });
     document.getElementById('mascBack')?.addEventListener('click', () => { mascaraState.phase = 'picker'; mascaraState.tipo = null; renderRoot(); });
     document.getElementById('mascApply')?.addEventListener('click', () => {
         const pi = mascaraState.targetPeca;
         const p = congDoc.pecas[pi];
         if (!p) { mascaraState = null; renderRoot(); return; }
-        p.macroscopia = buildTireoideMacro(d);
-        if (!p.nome || !p.nome.trim()) p.nome = tireoideNomePeca(d);
+        p.macroscopia = buildMascaraMacro(mascaraState.tipo, mascaraState.data);
+        const nome = mascaraNomePeca(mascaraState.tipo, mascaraState.data);
+        if (nome && (!p.nome || !p.nome.trim())) p.nome = nome;
         p.fraseRecebimento = true;
         mascaraState = null;
         renderRoot();
