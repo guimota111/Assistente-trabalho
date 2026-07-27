@@ -14,6 +14,10 @@ const TIREOIDE_REGIOES = [
 
 function defaultTireoideData() {
     return {
+        resseccao: 'total',      // 'total' | 'parcial'
+        ladoParcial: 'direito',  // lobo ressecado quando parcial
+        istmoParcial: false,     // parcial acompanhada do istmo
+        pesar: true,             // peso é opcional
         peso: '',
         tintaAnterior: '', tintaPosterior: '',
         lobos: {
@@ -25,7 +29,35 @@ function defaultTireoideData() {
     };
 }
 
-function defaultNodulo() { return { regiao: 'direito', local: '', med1: '', med2: '', desc: '' }; }
+function defaultNodulo(regiao) { return { regiao: regiao || 'direito', local: '', med1: '', med2: '', desc: '' }; }
+
+// Regiões que existem na peça conforme o tipo de ressecção.
+// Na parcial vem primeiro o lobo e depois o istmo, acompanhando o cabeçalho.
+function tireoideRegioesAtivas(d) {
+    if (d.resseccao !== 'parcial') return TIREOIDE_REGIOES;
+    const out = [TIREOIDE_REGIOES.find(r => r.key === d.ladoParcial)];
+    if (d.istmoParcial) out.push(TIREOIDE_REGIOES.find(r => r.key === 'istmo'));
+    return out;
+}
+
+// Reatribui nódulos presos a regiões que deixaram de existir na peça
+function sanitizeTireoideNodulos(d) {
+    const keys = tireoideRegioesAtivas(d).map(r => r.key);
+    for (const n of d.nodulos) if (!keys.includes(n.regiao)) n.regiao = keys[0];
+}
+
+// Descrição da peça: "tireoide", "lobo direito de tireoide", "... com istmo"
+function tireoidePecaDesc(d) {
+    if (d.resseccao !== 'parcial') return 'tireoide';
+    const lado = d.ladoParcial === 'esquerdo' ? 'esquerdo' : 'direito';
+    return `lobo ${lado} de tireoide${d.istmoParcial ? ' com istmo' : ''}`;
+}
+
+// Nome sugerido para a peça no laudo
+function tireoideNomePeca(d) {
+    const desc = tireoidePecaDesc(d);
+    return desc.charAt(0).toUpperCase() + desc.slice(1);
+}
 
 function fmtMedidas3(m) {
     const parts = [m.c, m.l, m.ap].map(x => String(x || '').trim());
@@ -35,13 +67,14 @@ function fmtMedidas3(m) {
 
 // Gera o corpo da macroscopia (o que vem depois de "consiste em")
 function buildTireoideMacro(d) {
-    const peso = String(d.peso || '').trim() || '[peso]';
     const ta = String(d.tintaAnterior || '').trim() || '[cor]';
     const tp = String(d.tintaPosterior || '').trim() || '[cor]';
     const lines = [];
-    lines.push(`tireoide pesando ${peso} gramas. A peça foi pintada com tinta nanquim ${ta} em face anterior e ${tp} em face posterior.`);
+    let cabecalho = tireoidePecaDesc(d);
+    if (d.pesar) cabecalho += ` pesando ${String(d.peso || '').trim() || '[peso]'} gramas`;
+    lines.push(`${cabecalho}. A peça foi pintada com tinta nanquim ${ta} em face anterior e ${tp} em face posterior.`);
     let contador = 0;
-    for (const reg of TIREOIDE_REGIOES) {
+    for (const reg of tireoideRegioesAtivas(d)) {
         const med = fmtMedidas3(d.lobos[reg.key]);
         const nods = d.nodulos.filter(n => n.regiao === reg.key);
         if (nods.length) {
@@ -92,7 +125,7 @@ function renderMascaraPicker() {
 
 function renderTireoideForm() {
     const d = mascaraState.data;
-    const regioesHTML = TIREOIDE_REGIOES.map(reg => {
+    const regioesHTML = tireoideRegioesAtivas(d).map(reg => {
         const m = d.lobos[reg.key];
         return `
         <div class="mascara-lobo">
@@ -115,7 +148,7 @@ function renderTireoideForm() {
             </div>
             <div class="mascara-nod-row">
                 <select class="cong-input mascara-nod-regiao" data-nod="${i}">
-                    ${TIREOIDE_REGIOES.map(r => `<option value="${r.key}" ${n.regiao === r.key ? 'selected' : ''}>${r.label}</option>`).join('')}
+                    ${tireoideRegioesAtivas(d).map(r => `<option value="${r.key}" ${n.regiao === r.key ? 'selected' : ''}>${r.label}</option>`).join('')}
                 </select>
                 <input class="cong-input mascara-nod-local" data-nod="${i}" value="${esc(n.local)}" placeholder="Localização (ex: terço superior)">
             </div>
@@ -132,13 +165,45 @@ function renderTireoideForm() {
     <div class="mascara-modal-overlay" id="mascaraOverlay">
         <div class="mascara-modal">
             <div class="mascara-modal-head">
-                <div class="mascara-modal-title">🦋 Máscara — Tireoide</div>
+                <div class="mascara-modal-title">🦋 Máscara — Tireoide ${d.resseccao === 'parcial' ? 'parcial' : 'total'}</div>
                 <button class="mascara-close" id="mascaraClose" title="Fechar">✕</button>
             </div>
             <div class="mascara-form">
                 <div class="mascara-field">
-                    <label class="cong-label">Peso total (g)</label>
-                    <input class="cong-input" id="mascPeso" value="${esc(d.peso)}" placeholder="Ex: 25">
+                    <label class="cong-label">Tipo de ressecção</label>
+                    <div class="mascara-seg">
+                        <button class="mascara-seg-btn${d.resseccao === 'total' ? ' active' : ''}" data-ressec="total">Total</button>
+                        <button class="mascara-seg-btn${d.resseccao === 'parcial' ? ' active' : ''}" data-ressec="parcial">Parcial</button>
+                    </div>
+                </div>
+                ${d.resseccao === 'parcial' ? `
+                <div class="mascara-row2">
+                    <div class="mascara-field">
+                        <label class="cong-label">Lobo ressecado</label>
+                        <div class="mascara-seg">
+                            <button class="mascara-seg-btn${d.ladoParcial === 'direito' ? ' active' : ''}" data-lado="direito">Direito</button>
+                            <button class="mascara-seg-btn${d.ladoParcial === 'esquerdo' ? ' active' : ''}" data-lado="esquerdo">Esquerdo</button>
+                        </div>
+                    </div>
+                    <div class="mascara-field">
+                        <label class="cong-label">Istmo</label>
+                        <label class="cong-frase-toggle mascara-istmo-toggle">
+                            <input type="checkbox" id="mascIstmo" ${d.istmoParcial ? 'checked' : ''}>
+                            <span>Acompanhado do istmo</span>
+                        </label>
+                    </div>
+                </div>` : ''}
+                <div class="mascara-field">
+                    <div class="mascara-peso-head">
+                        <label class="cong-label">Peso${d.resseccao === 'parcial' ? '' : ' total'} (g)</label>
+                        <label class="cong-frase-toggle" title="Desmarque quando a peça não for pesada">
+                            <input type="checkbox" id="mascPesar" ${d.pesar ? 'checked' : ''}>
+                            <span>Peça pesada</span>
+                        </label>
+                    </div>
+                    ${d.pesar
+                        ? `<input class="cong-input" id="mascPeso" value="${esc(d.peso)}" placeholder="Ex: 25">`
+                        : `<div class="mascara-peso-off">A peça não será pesada — o peso não entra na macroscopia.</div>`}
                 </div>
                 <div class="mascara-row2">
                     <div class="mascara-field">
@@ -199,6 +264,24 @@ function attachMascaraEvents() {
 
     // Formulário da tireoide
     const d = mascaraState.data;
+    document.querySelectorAll('.mascara-seg-btn[data-ressec]').forEach(btn => btn.addEventListener('click', () => {
+        if (d.resseccao === btn.dataset.ressec) return;
+        d.resseccao = btn.dataset.ressec;
+        sanitizeTireoideNodulos(d);
+        renderRoot();
+    }));
+    document.querySelectorAll('.mascara-seg-btn[data-lado]').forEach(btn => btn.addEventListener('click', () => {
+        if (d.ladoParcial === btn.dataset.lado) return;
+        d.ladoParcial = btn.dataset.lado;
+        sanitizeTireoideNodulos(d);
+        renderRoot();
+    }));
+    document.getElementById('mascIstmo')?.addEventListener('change', e => {
+        d.istmoParcial = e.target.checked;
+        sanitizeTireoideNodulos(d);
+        renderRoot();
+    });
+    document.getElementById('mascPesar')?.addEventListener('change', e => { d.pesar = e.target.checked; renderRoot(); });
     document.getElementById('mascPeso')?.addEventListener('input', e => { d.peso = e.target.value; updateMascPreview(); });
     document.getElementById('mascTintaAnt')?.addEventListener('input', e => { d.tintaAnterior = e.target.value; updateMascPreview(); });
     document.getElementById('mascTintaPost')?.addEventListener('input', e => { d.tintaPosterior = e.target.value; updateMascPreview(); });
@@ -210,7 +293,7 @@ function attachMascaraEvents() {
     document.querySelectorAll('.mascara-nod-med1').forEach(inp => inp.addEventListener('input', e => { d.nodulos[parseInt(e.target.dataset.nod)].med1 = e.target.value; updateMascPreview(); }));
     document.querySelectorAll('.mascara-nod-med2').forEach(inp => inp.addEventListener('input', e => { d.nodulos[parseInt(e.target.dataset.nod)].med2 = e.target.value; updateMascPreview(); }));
     document.querySelectorAll('.mascara-nod-desc').forEach(inp => inp.addEventListener('input', e => { d.nodulos[parseInt(e.target.dataset.nod)].desc = e.target.value; updateMascPreview(); }));
-    document.getElementById('mascAddNod')?.addEventListener('click', () => { d.nodulos.push(defaultNodulo()); renderRoot(); });
+    document.getElementById('mascAddNod')?.addEventListener('click', () => { d.nodulos.push(defaultNodulo(tireoideRegioesAtivas(d)[0].key)); renderRoot(); });
     document.querySelectorAll('.mascara-nod-remove').forEach(btn => btn.addEventListener('click', () => { d.nodulos.splice(parseInt(btn.dataset.nod), 1); renderRoot(); }));
     document.getElementById('mascTarget')?.addEventListener('change', e => { mascaraState.targetPeca = parseInt(e.target.value); });
     document.getElementById('mascBack')?.addEventListener('click', () => { mascaraState.phase = 'picker'; mascaraState.tipo = null; renderRoot(); });
@@ -219,7 +302,7 @@ function attachMascaraEvents() {
         const p = congDoc.pecas[pi];
         if (!p) { mascaraState = null; renderRoot(); return; }
         p.macroscopia = buildTireoideMacro(d);
-        if (!p.nome || !p.nome.trim()) p.nome = 'Tireoide';
+        if (!p.nome || !p.nome.trim()) p.nome = tireoideNomePeca(d);
         p.fraseRecebimento = true;
         mascaraState = null;
         renderRoot();
