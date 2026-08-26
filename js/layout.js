@@ -59,6 +59,7 @@ function renderRoot() {
         renderRoot();
     });
 
+    if (currentView !== 'mohs') stopMohsCronTicker();
     if (currentView === 'modelos') attachModelosEvents();
     else if (currentView === 'mohs') attachMohsEvents();
     else attachCongEvents();
