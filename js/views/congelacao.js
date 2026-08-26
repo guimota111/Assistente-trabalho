@@ -219,6 +219,10 @@ function renderCongelacao() {
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
                     HTML / Imagem
                 </button>
+                <button class="btn btn-outline" id="congEnviarEmail">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="4" width="20" height="16" rx="2"/><polyline points="2 6 12 13 22 6"/></svg>
+                    Enviar por e-mail
+                </button>
                 <button class="btn btn-outline" id="congSaveModelo">
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
                     Salvar modelo
@@ -235,6 +239,7 @@ function renderCongelacao() {
         </div>
         ${renderMascaraModal()}
         ${renderExportModal()}
+        ${renderEmailModal()}
     </div>`;
 }
 
@@ -369,7 +374,7 @@ function attachCongEvents() {
     document.getElementById('congExportHtml')?.addEventListener('click', () => {
         saveCongSuggestion('cirurgiao', congDoc.cirurgiao);
         saveCongSuggestion('patologista', congDoc.patologista);
-        exportOpen = true;
+        exportOpen = 'cong';
         renderRoot();
     });
     document.getElementById('congClearDoc')?.addEventListener('click', () => {
@@ -377,6 +382,13 @@ function attachCongEvents() {
         congDoc = defaultCongDoc();
         renderRoot();
     });
+    document.getElementById('congEnviarEmail')?.addEventListener('click', () => {
+        saveCongSuggestion('cirurgiao', congDoc.cirurgiao);
+        saveCongSuggestion('patologista', congDoc.patologista);
+        emailOpen = 'cong';
+        renderRoot();
+    });
     attachMascaraEvents();
     attachExportEvents();
+    attachEmailEvents();
 }
