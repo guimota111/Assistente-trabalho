@@ -453,7 +453,11 @@ function fragCasseteName(f, i) {
 
 /* ---------- Descrição / resultado ---------- */
 function buildMohsPecaDescricao(p) {
-    const nome = p.nome || '[Nome da Peça]';
+    return `${p.letter}) ${p.nome || '[Nome da Peça]'}: ${mohsPecaCorpo(p)}`;
+}
+
+// Só o corpo da descrição (sem o "A) Nome:"), usado também no laudo em papel
+function mohsPecaCorpo(p) {
     const medidas = fmtMedidasMohs(p.medidas, ['c', 'l', 'a']);
     let corpo = `o material foi recebido a fresco para exame de congelação e consiste em produto de cirurgia de Mohs medindo ${medidas}`;
     if (p.comDebulking) {
@@ -466,11 +470,14 @@ function buildMohsPecaDescricao(p) {
     corpo += ' Aos cortes, o tecido é elástico e brancacento.';
     const numCassetes = buildCasseteGroups(principalCasseteEntries(p)).length;
     corpo += ` Todo material foi enviado para estudo histológico – ${numCassetes}B/VF.`;
-    return `${p.letter}) ${nome}: ${corpo}`;
+    return corpo;
 }
 
 function buildMohsAmpDescricao(amp) {
-    const nome = amp.nome || '[Nome da Ampliação]';
+    return `${amp.letter}) ${amp.nome || '[Nome da Ampliação]'}: ${mohsAmpCorpo(amp)}`;
+}
+
+function mohsAmpCorpo(amp) {
     let corpo = 'o material foi recebido a fresco para exame de congelação e consiste em produto de ampliação de margem cirúrgica';
     const frags = amp.fragmentos;
     if (frags.length === 1) {
@@ -488,7 +495,7 @@ function buildMohsAmpDescricao(amp) {
     corpo += ' Aos cortes, o tecido é elástico e brancacento.';
     const numCassetes = buildCasseteGroups(ampCasseteEntries(amp)).length;
     corpo += ` Todo material foi enviado para estudo histológico – ${numCassetes}B/VF.`;
-    return `${amp.letter}) ${nome}: ${corpo}`;
+    return corpo;
 }
 
 // Resultado da peça principal — reporta por quadrante (comprometidos primeiro)
@@ -821,6 +828,14 @@ function renderMohs() {
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
                     Baixar .txt
                 </button>
+                <button class="btn btn-outline" id="mohsExportPdf">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9V2h12v7"/><path d="M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
+                    PDF / Imprimir
+                </button>
+                <button class="btn btn-outline" id="mohsEnviarEmail">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="4" width="20" height="16" rx="2"/><polyline points="2 6 12 13 22 6"/></svg>
+                    Enviar por e-mail
+                </button>
                 <button class="btn btn-outline" id="mohsClearDoc" style="margin-left:auto;color:var(--danger);border-color:var(--danger)">
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/></svg>
                     Limpar
@@ -831,6 +846,8 @@ function renderMohs() {
                 <pre class="cong-preview-text" id="mohsPreviewText">${esc(buildMohsText())}</pre>
             </div>
         </div>
+        ${renderExportModal()}
+        ${renderEmailModal()}
     </div>`;
 }
 
@@ -1049,7 +1066,25 @@ function attachMohsEvents() {
         renderRoot();
     });
 
+    const salvarSugestoes = () => {
+        saveCongSuggestion('mohs_cirurgiao', d.cirurgiao);
+        saveCongSuggestion('mohs_patologista', d.patologistas);
+        saveCongSuggestion('mohs_hospital', d.hospital);
+    };
+    document.getElementById('mohsExportPdf')?.addEventListener('click', () => {
+        salvarSugestoes();
+        exportOpen = 'mohs';
+        renderRoot();
+    });
+    document.getElementById('mohsEnviarEmail')?.addEventListener('click', () => {
+        salvarSugestoes();
+        emailOpen = 'mohs';
+        renderRoot();
+    });
+
     attachMohsCronEvents();
+    attachExportEvents();
+    attachEmailEvents();
     startMohsCronTicker();
     saveMohsDoc();
 }

@@ -7,7 +7,9 @@ function defaultCongDoc() {
 
 let congDoc      = defaultCongDoc();
 let mascaraState = null; // null | { phase:'picker'|'form', tipo, targetPeca, data }
-let exportOpen   = false; // modal de exportação HTML/imagem aberto
+let exportOpen   = false; // false | 'cong' | 'mohs' — modal de PDF/imagem aberto
+let emailOpen    = false; // false | 'cong' | 'mohs' — modal de e-mail aberto
+let mohsExportDiagramas = true; // inclui o desenho dos quadrantes no laudo em papel
 let mohsDoc      = loadMohsDoc(); // restaura o documento (e os cronômetros) de um refresh
 let currentView  = 'congelacao'; // 'congelacao' | 'mohs' | 'modelos'
 let currentUser  = null;

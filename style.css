@@ -1287,3 +1287,16 @@ header .date { color: var(--text-muted); font-size: 0.85rem; text-transform: cap
     transition: background 0.15s, color 0.15s, border-color 0.15s;
 }
 .mohs-cron-reset:hover { background: #3f1111; color: var(--danger); border-color: var(--danger); }
+
+/* ── Modais de exportação: PDF/imagem e e-mail ── */
+.export-check {
+    display: flex; align-items: center; gap: 8px; cursor: pointer;
+    font-size: 0.85rem; color: var(--text-muted); white-space: nowrap;
+}
+.export-check input { accent-color: var(--primary); }
+.email-modal { max-width: 720px; gap: 12px; overflow-y: auto; }
+.email-corpo-field { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.email-corpo {
+    flex: 1; min-height: 240px; resize: vertical;
+    font-family: 'Courier New', monospace; font-size: 0.8rem; line-height: 1.6;
+}
