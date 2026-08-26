@@ -77,7 +77,7 @@ function buildCongHTML() {
     if (d.isquemiaFria && d.isquemiaFria.trim())
         h += `<div><strong>Tempo de isquemia fria:</strong> ${esc(d.isquemiaFria.trim())}</div>`;
     if (d.informesClinicosVisible && d.informesClinicos.trim())
-        h += `<div><strong>Informes clínicos:</strong> ${esc(d.informesClinicos.trim())}</div>`;
+        h += `<div><strong>Informes clínicos:</strong> ${escLinhas(d.informesClinicos.trim())}</div>`;
     h += `</div>`;
 
     h += `<div class="laudo-title">Exame Transoperatório (Congelação)</div>`;
@@ -87,7 +87,7 @@ function buildCongHTML() {
         const macro = (p.macroscopia || '').trim();
         const corpo = (p.fraseRecebimento !== false) ? `${FRASE_RECEBIMENTO} ${macro}`.trim() : macro;
         h += `<div class="laudo-peca">`;
-        h += `<div class="laudo-peca-desc"><strong>${esc(p.letter)}) ${esc(p.nome || '[Nome da Peça]')}:</strong> ${esc(corpo)} ${esc(cassetesStr)}</div>`;
+        h += `<div class="laudo-peca-desc"><strong>${esc(p.letter)}) ${esc(p.nome || '[Nome da Peça]')}:</strong> ${escLinhas(corpo)} ${esc(cassetesStr)}</div>`;
         for (const c of p.cassetes) {
             const ini = casseteId(p.letter, c.inicio);
             const fim = casseteId(p.letter, c.fim);
@@ -138,7 +138,7 @@ function buildMohsHTML() {
     h += `<div><strong>Cirurgião:</strong> ${esc(d.cirurgiao || '[Cirurgião]')}</div>`;
     h += `<div><strong>Patologistas:</strong> ${esc(d.patologistas || '[Patologistas]')}</div>`;
     if (d.informeClinicoVisible && d.informeClinico.trim())
-        h += `<div><strong>Informe clínico:</strong> ${esc(d.informeClinico.trim())}</div>`;
+        h += `<div><strong>Informe clínico:</strong> ${escLinhas(d.informeClinico.trim())}</div>`;
     h += `</div>`;
 
     h += `<div class="laudo-title">Exame Transoperatório (Congelação)</div>`;

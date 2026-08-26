@@ -3,21 +3,25 @@
 // Registro das máscaras disponíveis (novas máscaras entram aqui)
 const MASCARAS = [
     { tipo: 'tireoide',   label: 'Tireoide',   icon: '🦋' },
+    { tipo: 'mama',       label: 'Mama',       icon: '🎀' },
     { tipo: 'fragmentos', label: 'Fragmentos', icon: '🧫' },
 ];
 
 // Despacho por tipo de máscara
 function defaultMascaraData(tipo) {
     if (tipo === 'fragmentos') return defaultFragmentosData();
+    if (tipo === 'mama') return defaultMamaData();
     return defaultTireoideData();
 }
 function buildMascaraMacro(tipo, d) {
     if (tipo === 'fragmentos') return buildFragmentosMacro(d);
+    if (tipo === 'mama') return buildMamaMacro(d);
     return buildTireoideMacro(d);
 }
 // Nome sugerido para a peça; vazio = topografia preenchida pelo usuário
 function mascaraNomePeca(tipo, d) {
     if (tipo === 'tireoide') return tireoideNomePeca(d);
+    if (tipo === 'mama') return mamaNomePeca();
     return '';
 }
 
@@ -111,13 +115,180 @@ function buildTireoideMacro(d) {
     return lines.join('\n');
 }
 
+/* ---------- Mama ---------- */
+// Margens na ordem em que aparecem na frase das tintas
+const MAMA_MARGENS_TINTA = [
+    { key: 'superior', label: 'superior', cor: 'azul' },
+    { key: 'medial',   label: 'medial',   cor: 'vermelho' },
+    { key: 'inferior', label: 'inferior', cor: 'verde' },
+    { key: 'lateral',  label: 'lateral',  cor: 'laranja' },
+    { key: 'anterior', label: 'anterior', cor: 'amarelo' },
+    { key: 'profunda', label: 'profunda', cor: 'preto' },
+];
+// Margens na ordem em que aparecem nas distâncias do achado
+const MAMA_MARGENS_DIST = ['medial', 'lateral', 'anterior', 'profunda', 'superior', 'inferior'];
+
+const MAMA_MARCACAO_PADRAO = '1 fio superior, 2 fios inferior, 3 fios medial';
+
+const MAMA_DESC_M = 'irregular, endurecido e espiculado';
+const MAMA_DESC_F = 'irregular, endurecida e espiculada';
+
+const MAMA_TIPOS = [
+    { key: 'nodulo', label: 'Nódulo',           sing: 'nódulo',           plural: 'nódulos',           genero: 'm' },
+    { key: 'lesao',  label: 'Lesão',            sing: 'lesão',            plural: 'lesões',            genero: 'f' },
+    { key: 'area',   label: 'Área brancacenta', sing: 'área brancacenta', plural: 'áreas brancacentas', genero: 'f' },
+    { key: 'outro',  label: 'Outro (escrever)', sing: '',                 plural: '',                  genero: 'f' },
+];
+
+function mamaTipo(key) { return MAMA_TIPOS.find(t => t.key === key) || MAMA_TIPOS[0]; }
+
+// Nome do achado no texto: o tipo escolhido, ou o que o usuário escreveu
+function mamaAchadoNome(a) {
+    if (a.tipo === 'outro') return String(a.tipoCustom || '').trim() || '[achado]';
+    return mamaTipo(a.tipo).sing;
+}
+
+// Características padrão concordando com o gênero do tipo
+function mamaDescPadrao(a) {
+    return mamaTipo(a.tipo).genero === 'm' ? MAMA_DESC_M : MAMA_DESC_F;
+}
+
+// Só reescreve enquanto for uma das padrão — texto do usuário fica
+function syncMamaDesc(a) {
+    const atual = String(a.desc || '').trim();
+    if (atual && atual !== MAMA_DESC_M && atual !== MAMA_DESC_F) return false;
+    const novo = mamaDescPadrao(a);
+    if (a.desc === novo) return false;
+    a.desc = novo;
+    return true;
+}
+
+function defaultMamaAchado(id) {
+    const a = { id, tipo: 'nodulo', tipoCustom: '', desc: '', med: { c: '', l: '', ap: '' }, dist: {} };
+    a.desc = mamaDescPadrao(a);
+    MAMA_MARGENS_DIST.forEach(k => { a.dist[k] = ''; });
+    return a;
+}
+
+function defaultMamaData() {
+    const tintas = {};
+    MAMA_MARGENS_TINTA.forEach(m => { tintas[m.key] = m.cor; });
+    return {
+        peso: '',
+        medidas: { c: '', l: '', ap: '' },
+        comMarcacao: true,
+        marcacao: MAMA_MARCACAO_PADRAO,
+        tintas,
+        nextId: 2,
+        achados: [defaultMamaAchado(1)],
+        distEntre: {}, // { 'id1_id2': '1,5' } — distância entre os achados
+    };
+}
+
+// Chave estável do par, independente da ordem em que os achados foram criados
+function mamaParKey(idA, idB) {
+    return idA < idB ? `${idA}_${idB}` : `${idB}_${idA}`;
+}
+
+// Pares de achados na ordem em que aparecem na lista
+function mamaPares(d) {
+    const out = [];
+    for (let i = 0; i < d.achados.length; i++)
+        for (let j = i + 1; j < d.achados.length; j++)
+            out.push({ i, j, a: d.achados[i], b: d.achados[j], key: mamaParKey(d.achados[i].id, d.achados[j].id) });
+    return out;
+}
+
+// Descarta distâncias de pares que não existem mais
+function sanitizeMamaDistEntre(d) {
+    const vivos = new Set(mamaPares(d).map(p => p.key));
+    Object.keys(d.distEntre).forEach(k => { if (!vivos.has(k)) delete d.distEntre[k]; });
+}
+
+function fmtMedidas3x(m) {
+    const parts = [m.c, m.l, m.ap].map(x => String(x || '').trim());
+    if (parts.every(x => !x)) return '[medidas] cm';
+    return parts.map(x => x || '_').join(' x ') + ' cm';
+}
+
+// "1 cm da margem medial, 2 cm da lateral, ... e 5 cm da inferior"
+function mamaDistFrase(dist) {
+    return joinComma(MAMA_MARGENS_DIST.map((k, i) => {
+        const v = String(dist[k] || '').trim() || '_';
+        return `${v} cm da ${i === 0 ? 'margem ' : ''}${k}`;
+    }));
+}
+
+// Frase de um achado; numerada quando há mais de um
+function mamaAchadoFrase(a, num, total) {
+    const nome = mamaAchadoNome(a);
+    const cabeca = total > 1 ? `${capitalize(nome)} ${num}` : nome;
+    const desc = String(a.desc || '').trim() || '[características]';
+    return `${cabeca}, ${desc}, medindo ${fmtMedidas3x(a.med)}, distando ${mamaDistFrase(a.dist)}.`;
+}
+
+// "Os nódulos 1 e 2 distam 1,5 cm entre si." — plural do tipo quando os dois são iguais
+function mamaDistEntreFrases(d) {
+    const pares = mamaPares(d);
+    if (!pares.length) return '';
+    const frases = pares.map(p => {
+        const mesmo = p.a.tipo === p.b.tipo && p.a.tipo !== 'outro';
+        const t = mesmo ? mamaTipo(p.a.tipo) : null;
+        const grupo = t ? `${t.genero === 'm' ? 'Os' : 'As'} ${t.plural}` : 'As lesões';
+        const v = String(d.distEntre[p.key] || '').trim() || '_';
+        return `${grupo} ${p.i + 1} e ${p.j + 1} distam ${v} cm entre si`;
+    });
+    return capitalize(joinComma(frases.map((f, i) => i ? f.charAt(0).toLowerCase() + f.slice(1) : f))) + '.';
+}
+
+// Corpo da macroscopia (o que vem depois de "consiste em")
+function buildMamaMacro(d) {
+    const peso = String(d.peso || '').trim() || '[peso]';
+    let cabecalho = `segmento mamário pesando ${peso}g, medindo ${fmtMedidas3x(d.medidas)}`;
+    if (d.comMarcacao)
+        cabecalho += `, exibindo marcação cirúrgica prévia: ${String(d.marcacao || '').trim() || '[marcação]'}`;
+    cabecalho += '. A peça foi pintada com tinta nanquim, sendo:';
+
+    const tintas = MAMA_MARGENS_TINTA.map(m =>
+        `${String(d.tintas[m.key] || '').trim() || '[cor]'} em sua margem ${m.label}`);
+    let linhaTintas = capitalize(joinComma(tintas)) + '.';
+
+    const lines = [cabecalho, linhaTintas];
+    if (d.achados.length === 1) {
+        lines[1] += ` Aos cortes apresenta ${mamaAchadoFrase(d.achados[0], 1, 1)}`;
+    } else if (d.achados.length > 1) {
+        lines[1] += ' Aos cortes apresenta:';
+        d.achados.forEach((a, i) => lines.push(mamaAchadoFrase(a, i + 1, d.achados.length)));
+        lines.push(mamaDistEntreFrases(d));
+    }
+    return lines.join('\n');
+}
+
+function mamaNomePeca() { return 'Segmento mamário'; }
+
 /* ---------- Fragmentos ---------- */
-const FRAGMENTOS_DESC_PADRAO = 'irregulares, elásticos e amarelados';
+const FRAGMENTOS_DESC_PLURAL   = 'irregulares, elásticos e amarelados';
+const FRAGMENTOS_DESC_SINGULAR = 'irregular, elástico e amarelado';
+
+// Descrição padrão concordando com a quantidade
+function fragmentosDescPadrao(d) {
+    return fragmentoUnico(d) ? FRAGMENTOS_DESC_SINGULAR : FRAGMENTOS_DESC_PLURAL;
+}
+
+// A descrição só é reescrita enquanto for uma das padrão — texto do usuário fica
+function syncFragmentosDesc(d) {
+    const atual = String(d.descricao || '').trim();
+    if (atual && atual !== FRAGMENTOS_DESC_PLURAL && atual !== FRAGMENTOS_DESC_SINGULAR) return false;
+    const novo = fragmentosDescPadrao(d);
+    if (d.descricao === novo) return false;
+    d.descricao = novo;
+    return true;
+}
 
 function defaultFragmentosData() {
     return {
         quantidade: '',
-        descricao: FRAGMENTOS_DESC_PADRAO,
+        descricao: FRAGMENTOS_DESC_PLURAL,
         maior: { a: '', b: '' },
         menor: { a: '', b: '' },
     };
@@ -154,6 +325,7 @@ function renderMascaraModal() {
     if (!mascaraState) return '';
     if (mascaraState.phase === 'picker') return renderMascaraPicker();
     if (mascaraState.tipo === 'tireoide') return renderTireoideForm();
+    if (mascaraState.tipo === 'mama') return renderMamaForm();
     if (mascaraState.tipo === 'fragmentos') return renderFragmentosForm();
     return '';
 }
@@ -300,6 +472,163 @@ function renderMascaraFooter() {
             </div>`;
 }
 
+function renderMamaAchado(a, i, total) {
+    const custom = a.tipo === 'outro';
+    return `
+        <div class="mascara-nodulo" data-mama="${i}">
+            <div class="mascara-nodulo-head">
+                <span class="mascara-nodulo-num">${total > 1 ? capitalize(mamaAchadoNome(a)) + ' ' + (i + 1) : 'Achado'}</span>
+                ${total > 1 ? `<button class="mama-ach-remove" data-mama="${i}" title="Remover achado">✕</button>` : ''}
+            </div>
+            <div class="mascara-nod-row">
+                <select class="cong-input mama-ach-tipo" data-mama="${i}">
+                    ${MAMA_TIPOS.map(t => `<option value="${t.key}" ${a.tipo === t.key ? 'selected' : ''}>${esc(t.label)}</option>`).join('')}
+                </select>
+                ${custom ? `<input class="cong-input mama-ach-custom" data-mama="${i}" value="${esc(a.tipoCustom)}" placeholder="Como chamar o achado (ex: espessamento)">` : ''}
+            </div>
+            <label class="cong-label mama-sub-label">Características</label>
+            <input class="cong-input mama-ach-desc" data-mama="${i}" value="${esc(a.desc)}" placeholder="${esc(mamaDescPadrao(a))}">
+            <label class="cong-label mama-sub-label">Medidas (cm)</label>
+            <div class="mascara-medidas">
+                <input class="cong-input mama-ach-med" data-mama="${i}" data-dim="c" value="${esc(a.med.c)}" placeholder="__">
+                <span>x</span>
+                <input class="cong-input mama-ach-med" data-mama="${i}" data-dim="l" value="${esc(a.med.l)}" placeholder="__">
+                <span>x</span>
+                <input class="cong-input mama-ach-med" data-mama="${i}" data-dim="ap" value="${esc(a.med.ap)}" placeholder="__">
+                <span>cm</span>
+            </div>
+            <label class="cong-label mama-sub-label">Distância até cada margem (cm)</label>
+            <div class="mascara-grid3">
+                ${MAMA_MARGENS_DIST.map(k => `
+                <label class="mama-dist-item">
+                    <span>${k}</span>
+                    <input class="cong-input mama-ach-dist" data-mama="${i}" data-margem="${k}" value="${esc(a.dist[k])}" placeholder="__">
+                </label>`).join('')}
+            </div>
+        </div>`;
+}
+
+function renderMamaForm() {
+    const d = mascaraState.data;
+    const total = d.achados.length;
+    const pares = mamaPares(d);
+    return `
+    <div class="mascara-modal-overlay" id="mascaraOverlay">
+        <div class="mascara-modal">
+            <div class="mascara-modal-head">
+                <div class="mascara-modal-title">🎀 Máscara — Mama</div>
+                <button class="mascara-close" id="mascaraClose" title="Fechar">✕</button>
+            </div>
+            <div class="mascara-form">
+                <div class="mascara-hint">A lateralidade entra no campo <strong>Nome da peça</strong>, fora da máscara.</div>
+                <div class="mascara-row2">
+                    <div class="mascara-field mascara-field-qtd">
+                        <label class="cong-label">Peso (g)</label>
+                        <input class="cong-input" id="mamaPeso" value="${esc(d.peso)}" placeholder="Ex: 250">
+                    </div>
+                    <div class="mascara-field">
+                        <label class="cong-label">Medidas da peça (cm)</label>
+                        <div class="mascara-medidas">
+                            <input class="cong-input mama-med" data-dim="c" value="${esc(d.medidas.c)}" placeholder="__">
+                            <span>x</span>
+                            <input class="cong-input mama-med" data-dim="l" value="${esc(d.medidas.l)}" placeholder="__">
+                            <span>x</span>
+                            <input class="cong-input mama-med" data-dim="ap" value="${esc(d.medidas.ap)}" placeholder="__">
+                        </div>
+                    </div>
+                </div>
+                <div class="mascara-field">
+                    <div class="mascara-peso-head">
+                        <label class="cong-label">Marcação cirúrgica prévia</label>
+                        <label class="cong-frase-toggle" title="Desmarque quando a peça não vier com fios">
+                            <input type="checkbox" id="mamaComMarcacao" ${d.comMarcacao ? 'checked' : ''}>
+                            <span>Peça marcada</span>
+                        </label>
+                    </div>
+                    ${d.comMarcacao
+                        ? `<input class="cong-input" id="mamaMarcacao" value="${esc(d.marcacao)}" placeholder="${esc(MAMA_MARCACAO_PADRAO)}">`
+                        : `<div class="mascara-peso-off">Sem marcação — a frase dos fios não entra na macroscopia.</div>`}
+                </div>
+                <div class="mascara-field">
+                    <label class="cong-label">Tinta nanquim por margem</label>
+                    <div class="mascara-grid3">
+                        ${MAMA_MARGENS_TINTA.map(m => `
+                        <label class="mama-dist-item">
+                            <span>${m.label}</span>
+                            <input class="cong-input mama-tinta" data-margem="${m.key}" value="${esc(d.tintas[m.key])}" placeholder="${m.cor}">
+                        </label>`).join('')}
+                    </div>
+                </div>
+                <div class="mascara-nodulos-section">
+                    <label class="cong-label">Achados aos cortes</label>
+                    <div class="mascara-nodulos-list">${d.achados.map((a, i) => renderMamaAchado(a, i, total)).join('') || '<div class="mascara-nod-empty">Nenhum achado — a frase "Aos cortes" não entra na macroscopia.</div>'}</div>
+                    <button class="btn btn-outline mascara-add-nod" id="mamaAddAchado">+ Adicionar achado</button>
+                </div>
+                ${pares.length ? `
+                <div class="mascara-field">
+                    <label class="cong-label">Distância entre os achados (cm)</label>
+                    <div class="mascara-grid3">
+                        ${pares.map(p => `
+                        <label class="mama-dist-item">
+                            <span>${p.i + 1} e ${p.j + 1}</span>
+                            <input class="cong-input mama-dist-entre" data-par="${p.key}" value="${esc(d.distEntre[p.key] || '')}" placeholder="__">
+                        </label>`).join('')}
+                    </div>
+                </div>` : ''}
+                <div class="mascara-preview">
+                    <div class="cong-preview-label">Pré-visualização</div>
+                    <pre class="mascara-preview-text" id="mascPreview">${esc(buildMamaMacro(d))}</pre>
+                </div>
+            </div>
+            ${renderMascaraFooter()}
+        </div>
+    </div>`;
+}
+
+function attachMamaEvents() {
+    const d = mascaraState.data;
+    document.getElementById('mamaPeso')?.addEventListener('input', e => { d.peso = e.target.value; updateMascPreview(); });
+    document.querySelectorAll('.mama-med').forEach(inp => inp.addEventListener('input', e => {
+        d.medidas[e.target.dataset.dim] = e.target.value; updateMascPreview();
+    }));
+    document.getElementById('mamaComMarcacao')?.addEventListener('change', e => { d.comMarcacao = e.target.checked; renderRoot(); });
+    document.getElementById('mamaMarcacao')?.addEventListener('input', e => { d.marcacao = e.target.value; updateMascPreview(); });
+    document.querySelectorAll('.mama-tinta').forEach(inp => inp.addEventListener('input', e => {
+        d.tintas[e.target.dataset.margem] = e.target.value; updateMascPreview();
+    }));
+
+    document.querySelectorAll('.mama-ach-tipo').forEach(sel => sel.addEventListener('change', e => {
+        const a = d.achados[parseInt(e.target.dataset.mama)];
+        a.tipo = e.target.value;
+        syncMamaDesc(a); // características acompanham o gênero do tipo
+        renderRoot();
+    }));
+    document.querySelectorAll('.mama-ach-custom').forEach(inp => inp.addEventListener('input', e => {
+        d.achados[parseInt(e.target.dataset.mama)].tipoCustom = e.target.value; updateMascPreview();
+    }));
+    document.querySelectorAll('.mama-ach-desc').forEach(inp => inp.addEventListener('input', e => {
+        d.achados[parseInt(e.target.dataset.mama)].desc = e.target.value; updateMascPreview();
+    }));
+    document.querySelectorAll('.mama-ach-med').forEach(inp => inp.addEventListener('input', e => {
+        d.achados[parseInt(e.target.dataset.mama)].med[e.target.dataset.dim] = e.target.value; updateMascPreview();
+    }));
+    document.querySelectorAll('.mama-ach-dist').forEach(inp => inp.addEventListener('input', e => {
+        d.achados[parseInt(e.target.dataset.mama)].dist[e.target.dataset.margem] = e.target.value; updateMascPreview();
+    }));
+    document.querySelectorAll('.mama-dist-entre').forEach(inp => inp.addEventListener('input', e => {
+        d.distEntre[e.target.dataset.par] = e.target.value; updateMascPreview();
+    }));
+    document.getElementById('mamaAddAchado')?.addEventListener('click', () => {
+        d.achados.push(defaultMamaAchado(d.nextId++));
+        renderRoot();
+    });
+    document.querySelectorAll('.mama-ach-remove').forEach(btn => btn.addEventListener('click', () => {
+        d.achados.splice(parseInt(btn.dataset.mama), 1);
+        sanitizeMamaDistEntre(d);
+        renderRoot();
+    }));
+}
+
 function renderFragmentosForm() {
     const d = mascaraState.data;
     const unico = fragmentoUnico(d);
@@ -327,8 +656,8 @@ function renderFragmentosForm() {
                     </div>
                 </div>
                 <div class="mascara-field">
-                    <label class="cong-label">Descrição dos fragmentos</label>
-                    <input class="cong-input" id="fragDesc" value="${esc(d.descricao)}" placeholder="${esc(FRAGMENTOS_DESC_PADRAO)}">
+                    <label class="cong-label" id="fragDescLabel">Descrição ${unico ? 'do fragmento' : 'dos fragmentos'}</label>
+                    <input class="cong-input" id="fragDesc" value="${esc(d.descricao)}" placeholder="${esc(fragmentosDescPadrao(d))}">
                 </div>
                 <div class="mascara-lobo">
                     <label class="cong-label" id="fragMaiorLabel">${unico ? 'Medidas (cm)' : 'Maior fragmento — medidas (cm)'}</label>
@@ -361,6 +690,14 @@ function syncFragmentosUI(d) {
     if (menor) menor.style.display = unico ? 'none' : '';
     const lbl = document.getElementById('fragMaiorLabel');
     if (lbl) lbl.textContent = unico ? 'Medidas (cm)' : 'Maior fragmento — medidas (cm)';
+    const mudou = syncFragmentosDesc(d);
+    const desc = document.getElementById('fragDesc');
+    if (desc) {
+        desc.placeholder = fragmentosDescPadrao(d);
+        if (mudou) desc.value = d.descricao;
+    }
+    const lblDesc = document.getElementById('fragDescLabel');
+    if (lblDesc) lblDesc.textContent = unico ? 'Descrição do fragmento' : 'Descrição dos fragmentos';
 }
 
 /* ---------- Eventos ---------- */
@@ -382,6 +719,7 @@ function attachMascaraEvents() {
     }
 
     if (mascaraState.tipo === 'fragmentos') { attachFragmentosEvents(); attachMascaraFooterEvents(); return; }
+    if (mascaraState.tipo === 'mama') { attachMamaEvents(); attachMascaraFooterEvents(); return; }
 
     // Formulário da tireoide
     const d = mascaraState.data;
