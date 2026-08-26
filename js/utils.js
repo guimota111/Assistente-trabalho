@@ -4,6 +4,16 @@ function ts(iso)    { return new Date(iso).getTime(); }
 function pad(n)     { return String(n).padStart(2, '0'); }
 function todayStr() { return new Date().toISOString().split('T')[0]; }
 function esc(str)   { return String(str||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+// Como esc(), mas preserva as quebras de linha digitadas (HTML colapsaria em espaço)
+function escLinhas(str) { return esc(str).replace(/\r?\n/g, '<br>'); }
+
+/* Texto: usados pelas máscaras e pelo laudo da Mohs */
+function joinComma(arr) {
+    if (!arr.length) return '';
+    if (arr.length === 1) return arr[0];
+    return arr.slice(0, -1).join(', ') + ' e ' + arr[arr.length - 1];
+}
+function capitalize(s) { return s ? s.charAt(0).toUpperCase() + s.slice(1) : s; }
 function formatPendDate(iso) {
     if (!iso) return '--';
     const d = new Date(iso);

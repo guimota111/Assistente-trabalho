@@ -302,14 +302,6 @@ function fmtMedidasMohs(m, dims) {
     return vals.map(v => v || '_').join(' x ') + ' cm';
 }
 
-function joinComma(arr) {
-    if (!arr.length) return '';
-    if (arr.length === 1) return arr[0];
-    return arr.slice(0, -1).join(', ') + ' e ' + arr[arr.length - 1];
-}
-
-function capitalize(s) { return s ? s.charAt(0).toUpperCase() + s.slice(1) : s; }
-
 function numeroPorExtenso(n) {
     const nomes = ['', 'um', 'dois', 'três', 'quatro', 'cinco', 'seis', 'sete', 'oito', 'nove', 'dez'];
     return nomes[n] || String(n);
