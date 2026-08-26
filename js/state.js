@@ -8,7 +8,7 @@ function defaultCongDoc() {
 let congDoc      = defaultCongDoc();
 let mascaraState = null; // null | { phase:'picker'|'form', tipo, targetPeca, data }
 let exportOpen   = false; // modal de exportação HTML/imagem aberto
-let mohsDoc      = defaultMohsDoc();
+let mohsDoc      = loadMohsDoc(); // restaura o documento (e os cronômetros) de um refresh
 let currentView  = 'congelacao'; // 'congelacao' | 'mohs' | 'modelos'
 let currentUser  = null;
 let authReady    = false;
