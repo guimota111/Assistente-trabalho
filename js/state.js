@@ -1,7 +1,8 @@
 /* ──────────── Congelação State ──────────── */
 function defaultCongDoc() {
     return { hospital: '', paciente: '', cirurgiao: '', patologista: '',
-             isquemiaFria: '',
+             isquemiaFria: '',              // tempo digitado à mão; tem precedência sobre o cronômetro
+             isquemiaCron: defaultCron(),   // { inicio, formol } — restaurado do localStorage em app.js
              informesClinicosVisible: false, informesClinicos: '', pecas: [] };
 }
 

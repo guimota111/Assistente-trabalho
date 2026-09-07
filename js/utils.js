@@ -55,6 +55,36 @@ function setText(id, val) {
     if (el) el.textContent = val;
 }
 
+/* Cronômetro de isquemia fria — compartilhado pela Mohs e pela congelação */
+function defaultCron() { return { inicio: null, formol: null }; }
+
+// Tempo decorrido; enquanto não for para o formol, conta até agora
+function cronElapsedMs(cron) {
+    if (!cron || !cron.inicio) return 0;
+    const fim = cron.formol ? new Date(cron.formol).getTime() : Date.now();
+    return Math.max(0, fim - new Date(cron.inicio).getTime());
+}
+
+// Relógio do cronômetro na tela: mm:ss, ou h:mm:ss depois da primeira hora
+function fmtCronClock(ms) {
+    const total = Math.floor(ms / 1000);
+    const h = Math.floor(total / 3600), m = Math.floor((total % 3600) / 60), s = total % 60;
+    return h ? `${h}:${pad(m)}:${pad(s)}` : `${pad(m)}:${pad(s)}`;
+}
+
+// Tempo como vai para o laudo: "45 min", "1h 20min"
+function fmtIsquemia(ms) {
+    const min = Math.round(ms / 60000);
+    const h = Math.floor(min / 60), m = min % 60;
+    if (!h) return `${min} min`;
+    return m ? `${h}h ${pad(m)}min` : `${h}h`;
+}
+
+function fmtHoraCurta(iso) {
+    const d = new Date(iso);
+    return `${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
 /* Cassete helpers — usados em congelacao.js e modelos.js */
 // Retorna o ID completo do cassete (ex: "A" + "4" → "A4"; "A4" → "A4")
 function casseteId(letter, val) {

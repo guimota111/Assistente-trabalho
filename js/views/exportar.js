@@ -74,8 +74,8 @@ function buildCongHTML() {
     h += `<div><strong>Paciente:</strong> ${esc(d.paciente || '[Paciente]')}</div>`;
     h += `<div><strong>Cirurgião:</strong> ${esc(d.cirurgiao || '[Cirurgião]')}</div>`;
     h += `<div><strong>Patologista:</strong> ${esc(d.patologista || '[Patologista]')}</div>`;
-    if (d.isquemiaFria && d.isquemiaFria.trim())
-        h += `<div><strong>Tempo de isquemia fria:</strong> ${esc(d.isquemiaFria.trim())}</div>`;
+    const isquemia = congIsquemiaTexto();
+    if (isquemia) h += `<div><strong>Tempo de isquemia fria:</strong> ${esc(isquemia)}</div>`;
     if (d.informesClinicosVisible && d.informesClinicos.trim())
         h += `<div><strong>Informes clínicos:</strong> ${escLinhas(d.informesClinicos.trim())}</div>`;
     h += `</div>`;

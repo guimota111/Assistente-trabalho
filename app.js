@@ -1,3 +1,6 @@
+// O cronômetro de isquemia fria sobrevive a um refresh
+congDoc.isquemiaCron = loadCongCron();
+
 auth.onAuthStateChanged(async user => {
     currentUser = user;
     authReady   = true;

@@ -117,6 +117,16 @@ CONTEXTO.md     → este arquivo
 - Toda a paleta sai de variáveis CSS em `:root` / `:root[data-theme="light"]` — nada de cor fixa nos componentes
 - `js/theme.js` é carregado no `<head>` para o tema já valer no primeiro paint (sem flash)
 
+### Isquemia fria (congelação e Mohs)
+- Cronômetro apertado no início da congelação e parado em "Colocado no formol";
+  o mesmo componente das duas telas (classes `.isq-cron*`, helpers em `js/utils.js`)
+- Na congelação ele fica em `congDoc.isquemiaCron` e é salvo em
+  `localStorage['cong_isquemia_v1']` — sobrevive a um refresh mesmo com o
+  resto do documento só em memória
+- `congDoc.isquemiaFria` continua existindo como tempo digitado à mão, para
+  quando esqueceram de apertar o botão; **quando preenchido, ele ganha do
+  cronômetro** (`congIsquemiaTexto()` decide, e o laudo em papel usa a mesma função)
+
 ### Máscaras da macroscopia (`js/views/mascaras.js`)
 Preenchem a peça a partir de um formulário. Registradas em `MASCARAS`: Tireoide, Mama,
 **Linfonodo sentinela** e Fragmentos.

@@ -64,6 +64,7 @@ function renderRoot() {
     });
 
     if (currentView !== 'mohs') stopMohsCronTicker();
+    if (currentView !== 'congelacao') stopCongCronTicker();
     if (currentView === 'modelos') attachModelosEvents();
     else if (currentView === 'mohs') attachMohsEvents();
     else attachCongEvents();

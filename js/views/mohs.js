@@ -123,34 +123,6 @@ function maxCasseteEm(lista) {
     return max;
 }
 
-/* ---------- Cronômetro de isquemia fria (por etapa) ---------- */
-function defaultCron() { return { inicio: null, formol: null }; }
-
-function cronElapsedMs(cron) {
-    if (!cron || !cron.inicio) return 0;
-    const fim = cron.formol ? new Date(cron.formol).getTime() : Date.now();
-    return Math.max(0, fim - new Date(cron.inicio).getTime());
-}
-
-function fmtCronClock(ms) {
-    const total = Math.floor(ms / 1000);
-    const h = Math.floor(total / 3600), m = Math.floor((total % 3600) / 60), s = total % 60;
-    const pad = v => String(v).padStart(2, '0');
-    return h ? `${h}:${pad(m)}:${pad(s)}` : `${pad(m)}:${pad(s)}`;
-}
-
-function fmtIsquemia(ms) {
-    const min = Math.round(ms / 60000);
-    const h = Math.floor(min / 60), m = min % 60;
-    if (!h) return `${min} min`;
-    return m ? `${h}h ${String(m).padStart(2, '0')}min` : `${h}h`;
-}
-
-function fmtHoraCurta(iso) {
-    const d = new Date(iso);
-    return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
-}
-
 // "Fragmento": unidade com medidas + desenho + divisões (a peça principal também é um)
 function defaultMohsFrag(shape, casseteStart) {
     const numDivisoes = shape === 'circle' ? 4 : 2;
@@ -657,17 +629,17 @@ function renderMohsCron(stage, key) {
     const rodando = !!c.inicio && !c.formol;
     let corpo;
     if (!c.inicio) {
-        corpo = `<button class="mohs-cron-btn mohs-cron-start" data-cron="${key}">▶ Iniciar congelação</button>
-                 <span class="mohs-cron-hint">Conta o tempo desta etapa até a colocação no formol.</span>`;
+        corpo = `<button class="isq-cron-btn mohs-cron-start" data-cron="${key}">▶ Iniciar congelação</button>
+                 <span class="isq-cron-hint">Conta o tempo desta etapa até a colocação no formol.</span>`;
     } else {
-        const valor = `<span class="mohs-cron-value${rodando ? ' running' : ''}"${rodando ? ` data-cron-live="${key}"` : ''}>${fmtCronClock(cronElapsedMs(c))}</span>`;
-        const horas = `<span class="mohs-cron-times">início ${fmtHoraCurta(c.inicio)}${c.formol ? ' → formol ' + fmtHoraCurta(c.formol) : ''}</span>`;
+        const valor = `<span class="isq-cron-value${rodando ? ' running' : ''}"${rodando ? ` data-cron-live="${key}"` : ''}>${fmtCronClock(cronElapsedMs(c))}</span>`;
+        const horas = `<span class="isq-cron-times">início ${fmtHoraCurta(c.inicio)}${c.formol ? ' → formol ' + fmtHoraCurta(c.formol) : ''}</span>`;
         corpo = `${valor}${horas}
-            ${rodando ? `<button class="mohs-cron-btn primary mohs-cron-formol" data-cron="${key}">Colocado no formol</button>` : ''}
-            <button class="mohs-cron-reset" data-cron="${key}" title="Zerar cronômetro desta etapa">↺</button>`;
+            ${rodando ? `<button class="isq-cron-btn primary mohs-cron-formol" data-cron="${key}">Colocado no formol</button>` : ''}
+            <button class="isq-cron-reset mohs-cron-reset" data-cron="${key}" title="Zerar cronômetro desta etapa">↺</button>`;
     }
-    return `<div class="mohs-cron${rodando ? ' running' : ''}">
-        <span class="mohs-cron-label">❄ Isquemia fria</span>
+    return `<div class="isq-cron${rodando ? ' running' : ''}">
+        <span class="isq-cron-label">❄ Isquemia fria</span>
         ${corpo}
     </div>`;
 }

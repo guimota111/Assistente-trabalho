@@ -8,6 +8,36 @@ function defaultPeca(idx) {
              cassetes: [{ inicio: '1', fim: '', descricao: '' }], resultado: '' };
 }
 
+/* ──────────── Isquemia fria: cronômetro + tempo digitado ──────────── */
+// O cronômetro é apertado no início da congelação e pode correr por bastante
+// tempo, então sobrevive a um refresh mesmo com o resto do documento em memória.
+const CONG_CRON_KEY = 'cong_isquemia_v1';
+
+function loadCongCron() {
+    try {
+        const c = JSON.parse(localStorage.getItem(CONG_CRON_KEY) || 'null');
+        if (c && typeof c === 'object') return { inicio: c.inicio || null, formol: c.formol || null };
+    } catch { /* localStorage bloqueado ou lixo salvo */ }
+    return defaultCron();
+}
+
+function saveCongCron() {
+    try { localStorage.setItem(CONG_CRON_KEY, JSON.stringify(congDoc.isquemiaCron || defaultCron())); }
+    catch { /* quota / navegação privada */ }
+}
+
+// O que vai depois de "Tempo de isquemia fria:" no laudo.
+// O tempo digitado ganha do cronômetro — é a saída para quando esqueceram de apertar.
+function congIsquemiaTexto() {
+    const manual = String(congDoc.isquemiaFria || '').trim();
+    if (manual) return manual;
+    const c = congDoc.isquemiaCron;
+    if (!c || !c.inicio) return '';
+    const ms = cronElapsedMs(c);
+    if (!c.formol) return `em andamento (${fmtIsquemia(ms)} até agora)`;
+    return `${fmtIsquemia(ms)} (congelação ${fmtHoraCurta(c.inicio)} → formol ${fmtHoraCurta(c.formol)})`;
+}
+
 function getCongSuggestions(key) {
     try { return JSON.parse(localStorage.getItem('cong_' + key) || '[]'); } catch { return []; }
 }
@@ -36,8 +66,8 @@ function buildCongText() {
     lines.push(`Paciente: ${d.paciente || '[Paciente]'}`);
     lines.push(`Cirurgião: ${d.cirurgiao || '[Cirurgião]'}`);
     lines.push(`Patologista: ${d.patologista || '[Patologista]'}`);
-    if (d.isquemiaFria && d.isquemiaFria.trim())
-        lines.push(`Tempo de isquemia fria: ${d.isquemiaFria.trim()}`);
+    const isquemia = congIsquemiaTexto();
+    if (isquemia) lines.push(`Tempo de isquemia fria: ${isquemia}`);
     if (d.informesClinicosVisible && d.informesClinicos.trim())
         lines.push(`Informes clínicos: ${d.informesClinicos.trim()}`);
     lines.push('');
@@ -73,6 +103,70 @@ function buildCongText() {
 }
 
 /* ──────────── Congelação: render ──────────── */
+// Cronômetro da isquemia fria, no mesmo formato da Mohs, com o campo
+// para digitar o tempo quando ninguém lembrou de apertar o botão
+function renderCongIsquemia() {
+    const c = congDoc.isquemiaCron || defaultCron();
+    const rodando = !!c.inicio && !c.formol;
+    let corpo;
+    if (!c.inicio) {
+        corpo = `<button class="isq-cron-btn cong-cron-start">▶ Iniciar congelação</button>
+                 <span class="isq-cron-hint">Conta o tempo até a colocação no formol.</span>`;
+    } else {
+        corpo = `<span class="isq-cron-value${rodando ? ' running' : ''}" id="congCronValue">${fmtCronClock(cronElapsedMs(c))}</span>
+            <span class="isq-cron-times">início ${fmtHoraCurta(c.inicio)}${c.formol ? ' → formol ' + fmtHoraCurta(c.formol) : ''}</span>
+            ${rodando ? `<button class="isq-cron-btn primary cong-cron-formol">Colocado no formol</button>` : ''}
+            <button class="isq-cron-reset cong-cron-reset" title="Zerar o cronômetro">↺</button>`;
+    }
+    return `
+    <div class="cong-isquemia">
+        <div class="isq-cron${rodando ? ' running' : ''}">
+            <span class="isq-cron-label">❄ Isquemia fria</span>
+            ${corpo}
+        </div>
+        <div class="cong-field cong-isquemia-manual">
+            <label class="cong-label" for="congIsquemiaFria">Tempo digitado à mão (opcional)</label>
+            <input class="cong-input" type="text" id="congIsquemiaFria" value="${esc(congDoc.isquemiaFria)}" placeholder="Ex: 45 min">
+            <div class="cong-isquemia-nota" id="congIsquemiaNota">${esc(congIsquemiaNota())}</div>
+        </div>
+    </div>`;
+}
+
+// Avisa quando o texto digitado está passando na frente do cronômetro
+function congIsquemiaNota() {
+    const manual = String(congDoc.isquemiaFria || '').trim();
+    const c = congDoc.isquemiaCron;
+    if (!manual || !c || !c.inicio) return '';
+    return 'O laudo vai usar o tempo digitado — apague o campo para voltar ao cronômetro.';
+}
+
+function updateCongIsquemiaNota() {
+    const el = document.getElementById('congIsquemiaNota');
+    if (el) el.textContent = congIsquemiaNota();
+}
+
+/* ---------- Relógio vivo do cronômetro ---------- */
+let congCronTicker = null;
+
+function stopCongCronTicker() {
+    if (congCronTicker) { clearInterval(congCronTicker); congCronTicker = null; }
+}
+
+function tickCongCron() {
+    const el = document.getElementById('congCronValue');
+    const c = congDoc.isquemiaCron;
+    if (!el || !c || !c.inicio || c.formol) { stopCongCronTicker(); return; }
+    el.textContent = fmtCronClock(cronElapsedMs(c));
+    updateCongPreview();
+}
+
+function startCongCronTicker() {
+    stopCongCronTicker();
+    const c = congDoc.isquemiaCron;
+    if (document.getElementById('congCronValue') && c && c.inicio && !c.formol)
+        congCronTicker = setInterval(tickCongCron, 1000);
+}
+
 function renderCongelacao() {
     const d = congDoc;
     const cirSugs = getCongSuggestions('cirurgiao');
@@ -181,11 +275,8 @@ function renderCongelacao() {
                     <input class="cong-input" type="text" id="congPatologista" value="${esc(d.patologista)}" placeholder="Nome do patologista" list="patSugList" autocomplete="off">
                     ${datalistHTML('patSugList', patSugs)}
                 </div>
-                <div class="cong-field">
-                    <label class="cong-label" for="congIsquemiaFria">Tempo de Isquemia Fria</label>
-                    <input class="cong-input" type="text" id="congIsquemiaFria" value="${esc(d.isquemiaFria)}" placeholder="Ex: 45 min">
-                </div>
             </div>
+            ${renderCongIsquemia()}
             <div class="cong-informes-row">
                 <button class="cong-btn-toggle-informes ${d.informesClinicosVisible ? 'active' : ''}" id="congToggleInformes">
                     ${d.informesClinicosVisible ? '▼' : '▶'} Informes Clínicos (opcional)
@@ -260,7 +351,29 @@ function attachCongEvents() {
     document.getElementById('congCirurgiao')?.addEventListener('blur', e => saveCongSuggestion('cirurgiao', e.target.value));
     document.getElementById('congPatologista')?.addEventListener('input', e => { congDoc.patologista = e.target.value; updateCongPreview(); });
     document.getElementById('congPatologista')?.addEventListener('blur', e => saveCongSuggestion('patologista', e.target.value));
-    document.getElementById('congIsquemiaFria')?.addEventListener('input', e => { congDoc.isquemiaFria = e.target.value; updateCongPreview(); });
+    document.getElementById('congIsquemiaFria')?.addEventListener('input', e => {
+        congDoc.isquemiaFria = e.target.value;
+        updateCongIsquemiaNota();
+        updateCongPreview();
+    });
+    document.querySelector('.cong-cron-start')?.addEventListener('click', () => {
+        congDoc.isquemiaCron = { inicio: new Date().toISOString(), formol: null };
+        saveCongCron();
+        renderRoot();
+    });
+    document.querySelector('.cong-cron-formol')?.addEventListener('click', () => {
+        const c = congDoc.isquemiaCron;
+        if (!c || !c.inicio) return;
+        c.formol = new Date().toISOString();
+        saveCongCron();
+        renderRoot();
+    });
+    document.querySelector('.cong-cron-reset')?.addEventListener('click', () => {
+        if (!confirm('Zerar o cronômetro de isquemia fria?')) return;
+        congDoc.isquemiaCron = defaultCron();
+        saveCongCron();
+        renderRoot();
+    });
     document.getElementById('congToggleInformes')?.addEventListener('click', () => { congDoc.informesClinicosVisible = !congDoc.informesClinicosVisible; renderRoot(); });
     document.getElementById('congInformesClinicos')?.addEventListener('input', e => { congDoc.informesClinicos = e.target.value; updateCongPreview(); });
     document.getElementById('congAddPeca')?.addEventListener('click', () => { congDoc.pecas.push(defaultPeca(congDoc.pecas.length)); renderRoot(); });
@@ -378,8 +491,9 @@ function attachCongEvents() {
         renderRoot();
     });
     document.getElementById('congClearDoc')?.addEventListener('click', () => {
-        if (!confirm('Limpar todo o documento?')) return;
+        if (!confirm('Limpar todo o documento? O cronômetro de isquemia fria também será zerado.')) return;
         congDoc = defaultCongDoc();
+        saveCongCron();
         renderRoot();
     });
     document.getElementById('congEnviarEmail')?.addEventListener('click', () => {
@@ -391,4 +505,5 @@ function attachCongEvents() {
     attachMascaraEvents();
     attachExportEvents();
     attachEmailEvents();
+    startCongCronTicker();
 }
