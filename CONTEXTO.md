@@ -50,7 +50,8 @@ Patologista que:
 
 ## Estrutura de arquivos
 ```
-index.html      → estrutura HTML (22 linhas — só links para style.css e app.js)
+index.html      → estrutura HTML (só os links para style.css e os scripts de js/)
+js/theme.js     → tema claro/escuro (carregado no <head>)
 style.css       → todo o CSS / dark theme (~310 linhas)
 app.js          → toda a lógica JS / render (~580 linhas)
 manifest.json   → configuração PWA
@@ -111,7 +112,27 @@ CONTEXTO.md     → este arquivo
 - Ao abrir num novo dia: dados do dia anterior são auto-salvos no histórico
 
 ### Visual
-- **Dark theme** completo (bg `#0f172a`, cards `#1e293b`, texto `#f1f5f9`)
+- **Tema claro e escuro**, alternados pelo botão do cabeçalho (e da tela de login)
+- A escolha fica em `localStorage` (`cong_theme`); na primeira visita segue a preferência do sistema
+- Toda a paleta sai de variáveis CSS em `:root` / `:root[data-theme="light"]` — nada de cor fixa nos componentes
+- `js/theme.js` é carregado no `<head>` para o tema já valer no primeiro paint (sem flash)
+
+### Máscaras da macroscopia (`js/views/mascaras.js`)
+Preenchem a peça a partir de um formulário. Registradas em `MASCARAS`: Tireoide, Mama,
+**Linfonodo sentinela** e Fragmentos.
+
+Cada tipo entra pelos despachos do topo do arquivo:
+`defaultMascaraData` / `buildMascaraMacro` / `mascaraNomePeca` e, opcionalmente,
+`mascaraCassetes` (mapeamento pronto) e `mascaraResultado` (resultado da congelação).
+
+**Linfonodo sentinela** — a única que preenche os três de uma vez:
+- Gordura medida em 3 dimensões, contador de linfonodos dissecados e medidas do maior
+  (e do menor, se marcado)
+- Bolinhas numeradas: clicar marca o linfonodo comprometido
+- Cassetes por linfonodo (um linfonodo grande ocupa mais de um) + cassetes só de gordura;
+  a numeração é recalculada e vira o mapeamento da peça
+- Resultado: `Macrometástase de carcinoma em 01 de 03 linfonodos avaliados (01/03).`
+  ou, sem comprometimento, `Três linfonodos livres de macrometástases (00/03).`
 
 ---
 

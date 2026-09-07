@@ -10,6 +10,7 @@ function renderRoot() {
     if (!currentUser) {
         root.innerHTML = `
         <div class="login-screen">
+            <div class="login-theme">${renderThemeToggle()}</div>
             <div class="login-card">
                 <div class="login-icon">❄️</div>
                 <h1>Congelação</h1>
@@ -26,6 +27,7 @@ function renderRoot() {
             </div>
         </div>`;
         document.getElementById('btnSignIn')?.addEventListener('click', signIn);
+        document.getElementById('btnTheme')?.addEventListener('click', toggleTheme);
         return;
     }
 
@@ -38,6 +40,7 @@ function renderRoot() {
             <div class="app-header">
                 <div class="app-header-center"><h1>Congelação</h1></div>
                 <div class="app-header-side">
+                    ${renderThemeToggle()}
                     <button class="btn btn-outline" id="btnSignOut" style="font-size:0.8rem;padding:6px 12px">Sair</button>
                 </div>
             </div>
@@ -51,6 +54,7 @@ function renderRoot() {
     </div>`;
 
     document.getElementById('btnSignOut')?.addEventListener('click', doSignOut);
+    document.getElementById('btnTheme')?.addEventListener('click', toggleTheme);
     document.getElementById('tabCongelacao').addEventListener('click', () => { currentView = 'congelacao'; renderRoot(); });
     document.getElementById('tabMohs').addEventListener('click', () => { currentView = 'mohs'; renderRoot(); });
     document.getElementById('tabModelos').addEventListener('click', async () => {

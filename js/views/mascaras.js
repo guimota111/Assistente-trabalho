@@ -4,6 +4,7 @@
 const MASCARAS = [
     { tipo: 'tireoide',   label: 'Tireoide',   icon: '🦋' },
     { tipo: 'mama',       label: 'Mama',       icon: '🎀' },
+    { tipo: 'linfonodo',  label: 'Linfonodo sentinela', icon: '🫧' },
     { tipo: 'fragmentos', label: 'Fragmentos', icon: '🧫' },
 ];
 
@@ -11,17 +12,30 @@ const MASCARAS = [
 function defaultMascaraData(tipo) {
     if (tipo === 'fragmentos') return defaultFragmentosData();
     if (tipo === 'mama') return defaultMamaData();
+    if (tipo === 'linfonodo') return defaultLinfonodoData();
     return defaultTireoideData();
 }
 function buildMascaraMacro(tipo, d) {
     if (tipo === 'fragmentos') return buildFragmentosMacro(d);
     if (tipo === 'mama') return buildMamaMacro(d);
+    if (tipo === 'linfonodo') return buildLinfonodoMacro(d);
     return buildTireoideMacro(d);
 }
 // Nome sugerido para a peça; vazio = topografia preenchida pelo usuário
 function mascaraNomePeca(tipo, d) {
     if (tipo === 'tireoide') return tireoideNomePeca(d);
     if (tipo === 'mama') return mamaNomePeca();
+    if (tipo === 'linfonodo') return linfonodoNomePeca(d);
+    return '';
+}
+// Máscaras que já sabem o mapeamento dos cassetes o entregam pronto; null = manter o da peça
+function mascaraCassetes(tipo, d) {
+    if (tipo === 'linfonodo') return linfonodoCassetes(d);
+    return null;
+}
+// Idem para o resultado da congelação; '' = manter o que já estiver escrito
+function mascaraResultado(tipo, d) {
+    if (tipo === 'linfonodo') return linfonodoResultado(d);
     return '';
 }
 
@@ -320,12 +334,266 @@ function buildFragmentosMacro(d) {
     return s;
 }
 
+/* ---------- Linfonodo sentinela ---------- */
+// Topografias que já vêm sugeridas no campo; o campo é livre
+const LINFO_TOPOGRAFIAS = [
+    'axila direita', 'axila esquerda',
+    'cervical direita', 'cervical esquerda',
+    'inguinal direita', 'inguinal esquerda',
+];
+
+// achado = frase do comprometimento; livre = como aparece na frase dos linfonodos negativos
+const LINFO_TIPOS = [
+    { key: 'macro', label: 'Macrometástase', achado: 'Macrometástase', achadoPlural: 'Macrometástases', livre: 'macrometástases' },
+    { key: 'micro', label: 'Micrometástase', achado: 'Micrometástase', achadoPlural: 'Micrometástases', livre: 'micrometástases' },
+    { key: 'cti',   label: 'Células isoladas', achado: 'Células tumorais isoladas', achadoPlural: 'Células tumorais isoladas', livre: 'células tumorais isoladas' },
+];
+
+const LINFO_NUM_EXTENSO = ['zero', 'um', 'dois', 'três', 'quatro', 'cinco', 'seis', 'sete', 'oito',
+    'nove', 'dez', 'onze', 'doze', 'treze', 'quatorze', 'quinze', 'dezesseis', 'dezessete',
+    'dezoito', 'dezenove', 'vinte'];
+
+function numeroExtenso(n) { return LINFO_NUM_EXTENSO[n] || String(n); }
+
+function linfoTipo(key) { return LINFO_TIPOS.find(t => t.key === key) || LINFO_TIPOS[0]; }
+
+function defaultLinfonodo() { return { cassetes: '1', comprometido: false }; }
+
+function defaultLinfonodoData() {
+    return {
+        topografia: 'axila direita',
+        gordura: { c: '', l: '', ap: '' },
+        linfonodos: [defaultLinfonodo()],
+        medirMenor: true,          // com um só linfonodo não existe maior/menor
+        maior: { a: '', b: '' },
+        menor: { a: '', b: '' },
+        gorduraCassetes: '1',      // cassetes só com gordura, depois dos linfonodos
+        tipo: 'macro',
+        neoplasia: 'carcinoma',
+    };
+}
+
+// Ajusta a lista de linfonodos preservando o que já foi marcado
+function setLinfonodoQtd(d, n) {
+    n = Math.max(1, Math.min(40, n));
+    while (d.linfonodos.length < n) d.linfonodos.push(defaultLinfonodo());
+    d.linfonodos.length = n;
+}
+
+function linfonodoComprometidos(d) { return d.linfonodos.filter(l => l.comprometido).length; }
+
+function linfonodoNomePeca(d) {
+    const topo = String(d.topografia || '').trim();
+    return topo ? `Linfonodo sentinela ${topo}` : 'Linfonodo sentinela';
+}
+
+// Corpo da macroscopia (o que vem depois de "consiste em")
+function buildLinfonodoMacro(d) {
+    const total = d.linfonodos.length;
+    let s = `segmento de tecido adiposo medindo ${fmtMedidas3x(d.gordura)}, `;
+    if (total === 1) {
+        s += `de onde foi dissecada 1 estrutura nodular medindo ${fmtMedidas2(d.maior)}.`;
+        return s;
+    }
+    s += `de onde foram dissecadas ${total} estruturas nodulares, a maior medindo ${fmtMedidas2(d.maior)}`;
+    if (d.medirMenor) s += ` e a menor medindo ${fmtMedidas2(d.menor)}`;
+    return s + '.';
+}
+
+// Mapeamento dos cassetes: um bloco por linfonodo (ou mais, se ele for grande)
+// e a gordura restante no fim
+function linfonodoCassetes(d) {
+    const out = [];
+    let n = 1;
+    d.linfonodos.forEach((ln, i) => {
+        const qtd = Math.max(1, parseInt(ln.cassetes, 10) || 1);
+        const fim = n + qtd - 1;
+        out.push({ inicio: String(n), fim: qtd > 1 ? String(fim) : '', descricao: `Linfonodo sentinela ${i + 1}` });
+        n = fim + 1;
+    });
+    const g = Math.max(0, parseInt(d.gorduraCassetes, 10) || 0);
+    if (g > 0) {
+        const fim = n + g - 1;
+        out.push({ inicio: String(n), fim: g > 1 ? String(fim) : '', descricao: 'Gordura' });
+    }
+    return out;
+}
+
+// "Macrometástase de carcinoma em 01 de 03 linfonodos avaliados (01/03)."
+// "Três linfonodos livres de macrometástases (00/03)."
+function linfonodoResultado(d) {
+    const total = d.linfonodos.length;
+    const comp = linfonodoComprometidos(d);
+    const t = linfoTipo(d.tipo);
+    const contagem = `(${pad(comp)}/${pad(total)})`;
+    if (comp === 0) {
+        const nome = total === 1 ? 'linfonodo livre' : 'linfonodos livres';
+        return `${capitalize(numeroExtenso(total))} ${nome} de ${t.livre} ${contagem}.`;
+    }
+    const neo = String(d.neoplasia || '').trim() || '[neoplasia]';
+    const achado = comp > 1 ? t.achadoPlural : t.achado;
+    const avaliados = total === 1 ? 'linfonodo avaliado' : 'linfonodos avaliados';
+    return `${achado} de ${neo} em ${pad(comp)} de ${pad(total)} ${avaliados} ${contagem}.`;
+}
+
+function renderLinfonodoForm() {
+    const d = mascaraState.data;
+    const total = d.linfonodos.length;
+    const medidas2HTML = (grupo, m) => `
+            <div class="mascara-medidas">
+                <input class="cong-input linfo-med" data-grupo="${grupo}" data-dim="a" value="${esc(m.a)}" placeholder="__">
+                <span>x</span>
+                <input class="cong-input linfo-med" data-grupo="${grupo}" data-dim="b" value="${esc(m.b)}" placeholder="__">
+                <span>cm</span>
+            </div>`;
+
+    return `
+    <div class="mascara-modal-overlay" id="mascaraOverlay">
+        <div class="mascara-modal">
+            <div class="mascara-modal-head">
+                <div class="mascara-modal-title">🫧 Máscara — Linfonodo sentinela</div>
+                <button class="mascara-close" id="mascaraClose" title="Fechar">✕</button>
+            </div>
+            <div class="mascara-form">
+                <div class="mascara-hint">A máscara preenche a macroscopia, o mapeamento dos cassetes e o resultado da peça.</div>
+                <div class="mascara-row2">
+                    <div class="mascara-field">
+                        <label class="cong-label">Topografia</label>
+                        <input class="cong-input" id="linfoTopo" value="${esc(d.topografia)}" placeholder="Ex: axila direita" list="linfoTopoList" autocomplete="off">
+                        <datalist id="linfoTopoList">${LINFO_TOPOGRAFIAS.map(t => `<option value="${esc(t)}">`).join('')}</datalist>
+                    </div>
+                    <div class="mascara-field">
+                        <label class="cong-label">Gordura — medidas (cm)</label>
+                        <div class="mascara-medidas">
+                            <input class="cong-input linfo-gord-med" data-dim="c" value="${esc(d.gordura.c)}" placeholder="__">
+                            <span>x</span>
+                            <input class="cong-input linfo-gord-med" data-dim="l" value="${esc(d.gordura.l)}" placeholder="__">
+                            <span>x</span>
+                            <input class="cong-input linfo-gord-med" data-dim="ap" value="${esc(d.gordura.ap)}" placeholder="__">
+                        </div>
+                    </div>
+                </div>
+
+                <div class="mascara-field">
+                    <label class="cong-label">Linfonodos dissecados</label>
+                    <div class="linfo-qtd-row">
+                        <button class="linfo-qtd-btn" data-delta="-1" title="Menos um linfonodo" ${total <= 1 ? 'disabled' : ''}>−</button>
+                        <span class="linfo-qtd-val" id="linfoQtdVal">${total}</span>
+                        <button class="linfo-qtd-btn" data-delta="1" title="Mais um linfonodo">+</button>
+                    </div>
+                    <div class="linfo-bolinhas">
+                        ${d.linfonodos.map((ln, i) => `
+                        <button class="linfo-bola${ln.comprometido ? ' comprometido' : ''}" data-linfo="${i}" title="Linfonodo sentinela ${i + 1}">${i + 1}</button>`).join('')}
+                    </div>
+                    <div class="linfo-legenda" id="linfoLegenda">${linfonodoLegenda(d)}</div>
+                </div>
+
+                <div class="mascara-lobo">
+                    <label class="cong-label">${total > 1 ? 'Maior linfonodo — medidas (cm)' : 'Medidas do linfonodo (cm)'}</label>
+                    ${medidas2HTML('maior', d.maior)}
+                </div>
+                ${total > 1 ? `
+                <div class="mascara-field">
+                    <div class="mascara-peso-head">
+                        <label class="cong-label">Menor linfonodo — medidas (cm)</label>
+                        <label class="cong-frase-toggle" title="Desmarque para citar só o maior">
+                            <input type="checkbox" id="linfoMedirMenor" ${d.medirMenor ? 'checked' : ''}>
+                            <span>Medir o menor</span>
+                        </label>
+                    </div>
+                    ${d.medirMenor
+                        ? medidas2HTML('menor', d.menor)
+                        : `<div class="mascara-peso-off">Só o maior linfonodo entra na macroscopia.</div>`}
+                </div>` : ''}
+
+                <div class="mascara-nodulos-section">
+                    <label class="cong-label">Cassetes</label>
+                    <div class="mascara-hint">Um linfonodo grande ocupa mais de um cassete — ajuste aqui e a numeração se acomoda sozinha.</div>
+                    <div class="mascara-grid3">
+                        ${d.linfonodos.map((ln, i) => `
+                        <label class="mama-dist-item">
+                            <span>Linfonodo ${i + 1}</span>
+                            <input class="cong-input linfo-cass" type="number" min="1" data-linfo="${i}" value="${esc(String(ln.cassetes))}">
+                        </label>`).join('')}
+                        <label class="mama-dist-item">
+                            <span>Gordura</span>
+                            <input class="cong-input" type="number" min="0" id="linfoGordCass" value="${esc(String(d.gorduraCassetes))}">
+                        </label>
+                    </div>
+                </div>
+
+                <div class="mascara-nodulos-section">
+                    <label class="cong-label">Resultado</label>
+                    <div class="mascara-field">
+                        <label class="cong-label">Tipo de comprometimento</label>
+                        <div class="mascara-seg">
+                            ${LINFO_TIPOS.map(t => `<button class="mascara-seg-btn linfo-tipo-btn${d.tipo === t.key ? ' active' : ''}" data-tipo="${t.key}">${esc(t.label)}</button>`).join('')}
+                        </div>
+                    </div>
+                    <div class="mascara-field mascara-field-qtd">
+                        <label class="cong-label">Neoplasia</label>
+                        <input class="cong-input" id="linfoNeoplasia" value="${esc(d.neoplasia)}" placeholder="Ex: carcinoma">
+                    </div>
+                </div>
+
+                <div class="mascara-preview">
+                    <div class="cong-preview-label">Pré-visualização</div>
+                    <pre class="mascara-preview-text" id="mascPreview">${esc(mascaraPreviewText('linfonodo', d))}</pre>
+                </div>
+            </div>
+            ${renderMascaraFooter()}
+        </div>
+    </div>`;
+}
+
+function linfonodoLegenda(d) {
+    const comp = linfonodoComprometidos(d);
+    if (!comp) return 'Nenhum comprometido — clique nas bolinhas dos linfonodos acometidos.';
+    return `${comp} de ${d.linfonodos.length} comprometido${comp > 1 ? 's' : ''} — clique para desmarcar.`;
+}
+
+function attachLinfonodoEvents() {
+    const d = mascaraState.data;
+    document.getElementById('linfoTopo')?.addEventListener('input', e => { d.topografia = e.target.value; updateMascPreview(); });
+    document.querySelectorAll('.linfo-gord-med').forEach(inp => inp.addEventListener('input', e => {
+        d.gordura[e.target.dataset.dim] = e.target.value; updateMascPreview();
+    }));
+    document.querySelectorAll('.linfo-qtd-btn').forEach(btn => btn.addEventListener('click', () => {
+        setLinfonodoQtd(d, d.linfonodos.length + parseInt(btn.dataset.delta, 10));
+        renderRoot();
+    }));
+    // Marcar/desmarcar sem re-render, para a lista de bolinhas não piscar
+    document.querySelectorAll('.linfo-bola').forEach(btn => btn.addEventListener('click', () => {
+        const ln = d.linfonodos[parseInt(btn.dataset.linfo, 10)];
+        ln.comprometido = !ln.comprometido;
+        btn.classList.toggle('comprometido', ln.comprometido);
+        const leg = document.getElementById('linfoLegenda');
+        if (leg) leg.textContent = linfonodoLegenda(d);
+        updateMascPreview();
+    }));
+    document.querySelectorAll('.linfo-med').forEach(inp => inp.addEventListener('input', e => {
+        d[e.target.dataset.grupo][e.target.dataset.dim] = e.target.value; updateMascPreview();
+    }));
+    document.getElementById('linfoMedirMenor')?.addEventListener('change', e => { d.medirMenor = e.target.checked; renderRoot(); });
+    document.querySelectorAll('.linfo-cass').forEach(inp => inp.addEventListener('input', e => {
+        d.linfonodos[parseInt(e.target.dataset.linfo, 10)].cassetes = e.target.value; updateMascPreview();
+    }));
+    document.getElementById('linfoGordCass')?.addEventListener('input', e => { d.gorduraCassetes = e.target.value; updateMascPreview(); });
+    document.querySelectorAll('.linfo-tipo-btn').forEach(btn => btn.addEventListener('click', () => {
+        if (d.tipo === btn.dataset.tipo) return;
+        d.tipo = btn.dataset.tipo;
+        renderRoot();
+    }));
+    document.getElementById('linfoNeoplasia')?.addEventListener('input', e => { d.neoplasia = e.target.value; updateMascPreview(); });
+}
+
 /* ---------- Render do modal ---------- */
 function renderMascaraModal() {
     if (!mascaraState) return '';
     if (mascaraState.phase === 'picker') return renderMascaraPicker();
     if (mascaraState.tipo === 'tireoide') return renderTireoideForm();
     if (mascaraState.tipo === 'mama') return renderMamaForm();
+    if (mascaraState.tipo === 'linfonodo') return renderLinfonodoForm();
     if (mascaraState.tipo === 'fragmentos') return renderFragmentosForm();
     return '';
 }
@@ -677,9 +945,30 @@ function renderFragmentosForm() {
     </div>`;
 }
 
+// Texto da prévia: a macroscopia e, quando a máscara também os preenche,
+// o mapeamento dos cassetes e o resultado
+function mascaraPreviewText(tipo, d) {
+    const macro = buildMascaraMacro(tipo, d);
+    const cassetes = mascaraCassetes(tipo, d);
+    const resultado = mascaraResultado(tipo, d);
+    if (!cassetes && !resultado) return macro;
+    const letter = congDoc.pecas[mascaraState?.targetPeca]?.letter || 'A';
+    const lines = [macro];
+    if (cassetes && cassetes.length) {
+        lines.push('');
+        for (const c of cassetes) {
+            const ini = casseteId(letter, c.inicio);
+            const fim = casseteId(letter, c.fim);
+            lines.push(`${fim ? `${ini} a ${fim}` : ini} – ${c.descricao}`);
+        }
+    }
+    if (resultado) lines.push('', 'Resultado do exame de congelação', `- ${resultado}`);
+    return lines.join('\n');
+}
+
 function updateMascPreview() {
     const el = document.getElementById('mascPreview');
-    if (el && mascaraState) el.textContent = buildMascaraMacro(mascaraState.tipo, mascaraState.data);
+    if (el && mascaraState) el.textContent = mascaraPreviewText(mascaraState.tipo, mascaraState.data);
 }
 
 // Com um único fragmento não há "maior e menor" — alterna sem re-render,
@@ -720,6 +1009,7 @@ function attachMascaraEvents() {
 
     if (mascaraState.tipo === 'fragmentos') { attachFragmentosEvents(); attachMascaraFooterEvents(); return; }
     if (mascaraState.tipo === 'mama') { attachMamaEvents(); attachMascaraFooterEvents(); return; }
+    if (mascaraState.tipo === 'linfonodo') { attachLinfonodoEvents(); attachMascaraFooterEvents(); return; }
 
     // Formulário da tireoide
     const d = mascaraState.data;
@@ -773,7 +1063,8 @@ function attachFragmentosEvents() {
 
 // Rodapé comum: peça alvo, voltar e aplicar
 function attachMascaraFooterEvents() {
-    document.getElementById('mascTarget')?.addEventListener('change', e => { mascaraState.targetPeca = parseInt(e.target.value); });
+    // A letra da peça alvo aparece na prévia dos cassetes
+    document.getElementById('mascTarget')?.addEventListener('change', e => { mascaraState.targetPeca = parseInt(e.target.value); updateMascPreview(); });
     document.getElementById('mascBack')?.addEventListener('click', () => { mascaraState.phase = 'picker'; mascaraState.tipo = null; renderRoot(); });
     document.getElementById('mascApply')?.addEventListener('click', () => {
         const pi = mascaraState.targetPeca;
@@ -782,6 +1073,10 @@ function attachMascaraFooterEvents() {
         p.macroscopia = buildMascaraMacro(mascaraState.tipo, mascaraState.data);
         const nome = mascaraNomePeca(mascaraState.tipo, mascaraState.data);
         if (nome && (!p.nome || !p.nome.trim())) p.nome = nome;
+        const cassetes = mascaraCassetes(mascaraState.tipo, mascaraState.data);
+        if (cassetes && cassetes.length) p.cassetes = cassetes;
+        const resultado = mascaraResultado(mascaraState.tipo, mascaraState.data);
+        if (resultado) p.resultado = resultado;
         p.fraseRecebimento = true;
         mascaraState = null;
         renderRoot();
